@@ -53,14 +53,16 @@ function renderBooking(){
  $('#bookingStaff').innerHTML=data.store.staffEnabled?`<button class="choice ${booking.staffId==='any'?'selected':''}" data-staff="any"><span><b>${esc(data.store.staffLabel)} 상관없음</b><small>가능한 분으로 배정</small></span><strong>›</strong></button>`+eligible.map(st=>`<button class="choice ${booking.staffId===st.id?'selected':''}" data-staff="${st.id}"><span><b>${esc(st.name)}</b><small>${esc(st.specialty||'')}</small></span><strong>›</strong></button>`).join(''):'<button class="choice selected"><span><b>담당자 선택 없음</b><small>이 업종은 담당자 지정 없이 예약합니다.</small></span></button>';
  $('#pickedTimeText').textContent=booking.date&&booking.time?`${formatDate(booking.date)} · ${booking.time}`:'날짜와 시간을 선택';$('#toCustomerInfo').disabled=!(booking.date&&booking.time);
  $('#closureHint').textContent=`매장 휴무일: ${closedLabel()}${data.schedule.specialClosed.length?' · 임시휴무 '+data.schedule.specialClosed.map(x=>x.date).join(', '):''}`;
+ const timeBack=$('#timeBackToStaff'); if(timeBack) timeBack.textContent=data.store.staffEnabled?`‹ ${data.store.staffLabel||'담당자'} 다시 선택`:'‹ 서비스 다시 선택';
 }
-$('#bookingSheet').addEventListener('click',e=>{const s=e.target.closest('[data-service]');if(s){booking.serviceId=s.dataset.service;booking.staffId=null;setStep(data.store.staffEnabled?2:3)}const st=e.target.closest('[data-staff]');if(st){booking.staffId=st.dataset.staff;setStep(3)}});
+$('#bookingSheet').addEventListener('click',e=>{const s=e.target.closest('[data-service]');if(s){const changed=booking.serviceId!==s.dataset.service;booking.serviceId=s.dataset.service;if(changed){booking.staffId=null;booking.date=null;booking.time=null}setStep(data.store.staffEnabled?2:3)}const st=e.target.closest('[data-staff]');if(st){const changed=booking.staffId!==st.dataset.staff;booking.staffId=st.dataset.staff;if(changed){booking.date=null;booking.time=null}setStep(3)}});
 $('#prevStep').onclick=()=>setStep(Math.max(1,booking.step-1));
 $('#toCustomerInfo').onclick=()=>setStep(4);
 
 function buildDateStrip(){const wrap=$('#dateStrip');wrap.innerHTML='';for(let i=0;i<21;i++){const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+i);const iso=isoDate(d);const closed=isStoreClosed(iso);const b=document.createElement('button');b.className='dateBtn'+(booking.date===iso?' active':'')+(closed?' closed':'');b.innerHTML=`<small>${i===0?'오늘':DAYS[d.getDay()]}</small><b>${d.getMonth()+1}/${d.getDate()}</b>`;b.onclick=()=>{booking.date=iso;booking.time=null;buildDateStrip();renderTimes()};wrap.appendChild(b)}renderTimes()}
 function openTime(){if(!booking.serviceId){setStep(1);return}$('#timeSheet').classList.remove('hidden');buildDateStrip()}
 function closeTime(){ $('#timeSheet').classList.add('hidden')}
+function backFromTime(){closeTime();setStep(data.store.staffEnabled?2:1)}
 function isStoreClosed(iso){const d=new Date(iso+'T12:00:00');return data.schedule.closedDays.includes(d.getDay())||data.schedule.specialClosed.some(x=>x.date===iso)}
 function renderTimes(){const grid=$('#timeGrid'),status=$('#dayStatus');grid.innerHTML='';if(!booking.date){status.textContent='날짜를 먼저 선택해주세요.';return}const sp=data.schedule.specialClosed.find(x=>x.date===booking.date);if(isStoreClosed(booking.date)){status.textContent=sp?`매장 휴무 · ${sp.reason||'임시휴무'}`:'매장 정기 휴무일입니다.';return}
  const d=new Date(booking.date+'T12:00:00');const st=booking.staffId&&booking.staffId!=='any'?data.staff.find(x=>x.id===booking.staffId):null;if(st?.daysOff?.includes(d.getDay())){status.textContent=`${st.name} ${data.store.staffLabel}의 휴무일입니다. 다른 담당자를 선택해주세요.`;return}
@@ -68,7 +70,7 @@ function renderTimes(){const grid=$('#timeGrid'),status=$('#dayStatus');grid.inn
  slots.forEach(t=>{const disabled=slotUnavailable(booking.date,t,svc?.duration||data.schedule.slotMinutes,booking.staffId);const b=document.createElement('button');b.className='timeBtn';b.textContent=t;b.disabled=disabled;b.onclick=()=>confirmTime(t);grid.appendChild(b)})
 }
 function makeSlots(open,close,step){let [h,m]=open.split(':').map(Number),[eh,em]=close.split(':').map(Number),a=[];let cur=h*60+m,end=eh*60+em;while(cur<end){a.push(`${String(Math.floor(cur/60)).padStart(2,'0')}:${String(cur%60).padStart(2,'0')}`);cur+=Number(step)}return a}
-function slotUnavailable(date,time,duration,staffId){const start=toMin(time),end=start+duration,close=toMin(data.schedule.close);if(end>close)return true;return data.reservations.some(r=>r.date===date&&r.status!=='취소'&&(staffId==='any'||!staffId||r.staffId===staffId||r.staffId==='any')&&overlap(start,end,toMin(r.time),toMin(r.time)+Number(r.duration||30)))}
+function slotUnavailable(date,time,duration,staffId){const start=toMin(time),end=start+duration;return data.reservations.some(r=>r.date===date&&r.status!=='취소'&&(staffId==='any'||!staffId||r.staffId===staffId||r.staffId==='any')&&overlap(start,end,toMin(r.time),toMin(r.time)+Number(r.duration||30)))}
 const toMin=t=>{const[a,b]=t.split(':').map(Number);return a*60+b};const overlap=(a,b,c,d)=>Math.max(a,c)<Math.min(b,d);
 function confirmTime(t){showConfirm({title:'시간을 선택하시겠습니까?',body:`<p><b>${formatDate(booking.date)} ${t}</b>로 선택합니다.</p>`,ok:'선택',cancel:'아니오',onOk:()=>{booking.time=t;closeTime();renderBooking()}})}
 function formatDate(iso){const d=new Date(iso+'T12:00:00');return `${d.getMonth()+1}월 ${d.getDate()}일 ${DAYS[d.getDay()]}요일`}
@@ -83,6 +85,7 @@ function createReservation(name,phone,svc){const r={id:'r'+Date.now(),serviceId:
 
 $('[data-action="open-booking"]')?.addEventListener('click',()=>openBooking());document.addEventListener('click',e=>{if(e.target.closest('[data-action="open-booking"]'))openBooking();if(e.target.closest('[data-action="close-booking"]'))closeBooking();if(e.target.closest('[data-action="close-time"]'))closeTime();const s=e.target.closest('[data-scroll]');if(s){const id=s.dataset.scroll;if(id==='top')scrollTo({top:0,behavior:'smooth'});else document.getElementById(id)?.scrollIntoView({behavior:'smooth'})}const bs=e.target.closest('[data-book-service]');if(bs)openBooking({serviceId:bs.dataset.bookService});const bst=e.target.closest('[data-book-staff]');if(bst)openBooking({staffId:bst.dataset.bookStaff})});
 $('#openTimePicker').onclick=openTime;
+$('#timeBackToStaff').onclick=backFromTime;
 $('#saveContact').onclick=()=>{const v=`BEGIN:VCARD\nVERSION:3.0\nFN:${data.store.name}\nORG:${data.store.name}\nTEL;TYPE=WORK:${data.store.phone}\nADR;TYPE=WORK:;;${data.store.address};;;;\nNOTE:${data.store.tagline}\nEND:VCARD`;const blob=new Blob([v],{type:'text/vcard;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${data.store.name}.vcf`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 render();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('service-worker.js').catch(()=>{});
