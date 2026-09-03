@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f8f4f1" />
+  <title>Smart Store Demo</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="intro" class="intro hidden" aria-hidden="true">
+    <video id="introVideo" playsinline muted autoplay></video>
+    <img id="introImage" alt="매장 인트로" />
+    <div class="introShade"></div>
+    <div class="introCopy">
+      <span id="introBrand">LUMI</span>
+      <small>Welcome to our place</small>
+    </div>
+    <button id="skipIntro" class="introSkip">건너뛰기</button>
+  </div>
+
+  <div class="appShell">
+    <header class="hero card">
+      <div class="heroMedia" id="heroMedia">
+        <div class="heroBadge">SMART STORE</div>
+      </div>
+      <div class="heroBody">
+        <div>
+          <p class="eyebrow">WELCOME</p>
+          <h1 id="storeName">LUMI NAIL</h1>
+          <p id="storeTagline">당신의 일상에 작은 아름다움을</p>
+        </div>
+        <div class="heroActions">
+          <button class="primary" data-action="open-booking">예약하기</button>
+          <a class="secondary" id="callButton" href="tel:0212345678">전화하기</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="quickGrid" aria-label="빠른 메뉴">
+        <button data-scroll="services"><span>₩</span><b>서비스</b></button>
+        <button data-action="open-booking"><span>◷</span><b>예약</b></button>
+        <button data-scroll="gallery"><span>◇</span><b>갤러리</b></button>
+        <button data-scroll="storeInfo"><span>⌖</span><b>매장정보</b></button>
+      </section>
+
+      <section class="section" id="services">
+        <div class="sectionHead">
+          <div><p class="eyebrow">SERVICES</p><h2>서비스 & 가격</h2></div>
+          <button class="textBtn" data-action="open-booking">바로 예약</button>
+        </div>
+        <div id="serviceCards" class="serviceList"></div>
+      </section>
+
+      <section class="section" id="gallery">
+        <div class="sectionHead"><div><p class="eyebrow">GALLERY</p><h2>추천 스타일</h2></div></div>
+        <div class="galleryTrack" id="galleryTrack">
+          <article class="galleryCard g1"><span>Soft Pink</span><button data-action="open-booking">이 스타일로 예약</button></article>
+          <article class="galleryCard g2"><span>Clean Nude</span><button data-action="open-booking">이 스타일로 예약</button></article>
+          <article class="galleryCard g3"><span>Modern French</span><button data-action="open-booking">이 스타일로 예약</button></article>
+        </div>
+      </section>
+
+      <section class="section" id="staffSection">
+        <div class="sectionHead"><div><p class="eyebrow">TEAM</p><h2 id="staffHeading">담당자</h2></div></div>
+        <div id="staffCards" class="staffList"></div>
+      </section>
+
+      <section class="section noticeCard">
+        <div><p class="eyebrow">NOTICE</p><h2>이번 달 안내</h2></div>
+        <p id="noticeText">예약 전 휴무일과 담당자 일정을 확인해주세요.</p>
+      </section>
+
+      <section class="section" id="storeInfo">
+        <div class="sectionHead"><div><p class="eyebrow">VISIT</p><h2>매장정보</h2></div></div>
+        <div class="infoCard card">
+          <div><span>영업시간</span><strong id="hoursText">10:00 - 20:00</strong></div>
+          <div><span>휴무일</span><strong id="closedText">매주 월요일</strong></div>
+          <div><span>주소</span><strong id="addressText">서울시 예시구 123</strong></div>
+          <div class="infoButtons">
+            <a id="mapLink" class="secondary" target="_blank" rel="noopener">길찾기</a>
+            <button class="secondary" id="saveContact">연락처 저장</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottomNav">
+      <button data-scroll="top" class="active"><span>⌂</span>홈</button>
+      <button data-scroll="services"><span>₩</span>서비스</button>
+      <button class="bookFab" data-action="open-booking"><span>＋</span>예약</button>
+      <button data-scroll="gallery"><span>◇</span>갤러리</button>
+      <button data-scroll="storeInfo"><span>⌖</span>매장</button>
+    </nav>
+  </div>
+
+  <div id="bookingSheet" class="sheetBackdrop hidden" role="dialog" aria-modal="true">
+    <section class="sheet">
+      <div class="sheetHandle"></div>
+      <div class="sheetTop"><div><p class="eyebrow">BOOKING</p><h2>예약하기</h2></div><button class="iconBtn" data-action="close-booking">✕</button></div>
+      <div class="steps"><span class="on"></span><span></span><span></span><span></span></div>
+
+      <div class="bookingStep active" data-step="1">
+        <h3>1. 서비스를 선택해주세요</h3>
+        <div id="bookingServices" class="choiceList"></div>
+      </div>
+
+      <div class="bookingStep" data-step="2">
+        <h3>2. <span id="bookingStaffLabel">담당자</span>를 선택해주세요</h3>
+        <div id="bookingStaff" class="choiceList"></div>
+      </div>
+
+      <div class="bookingStep" data-step="3">
+        <h3>3. 날짜와 시간을 선택해주세요</h3>
+        <button id="openTimePicker" class="pickerButton"><span><small>예약 가능시간</small><b id="pickedTimeText">날짜와 시간을 선택</b></span><span>›</span></button>
+        <div id="closureHint" class="hintBox"></div>
+        <button id="toCustomerInfo" class="primary full" disabled>다음</button>
+      </div>
+
+      <div class="bookingStep" data-step="4">
+        <h3>4. 예약자 정보를 입력해주세요</h3>
+        <label class="field"><span>이름</span><input id="customerName" autocomplete="name" placeholder="이름" /></label>
+        <label class="field"><span>전화번호</span><input id="customerPhone" inputmode="tel" autocomplete="tel" placeholder="010-0000-0000" /></label>
+        <button id="finalReview" class="primary full">예약내용 확인</button>
+      </div>
+      <button id="prevStep" class="textBtn backBtn hidden">‹ 이전</button>
+    </section>
+  </div>
+
+  <div id="timeSheet" class="sheetBackdrop hidden" role="dialog" aria-modal="true">
+    <section class="sheet timeSheet">
+      <div class="sheetHandle"></div>
+      <div class="sheetTop"><div><p class="eyebrow">DATE & TIME</p><h2>예약시간 선택</h2></div><button class="iconBtn" data-action="close-time">✕</button></div>
+      <div id="dateStrip" class="dateStrip"></div>
+      <div id="dayStatus" class="dayStatus"></div>
+      <div id="timeGrid" class="timeGrid"></div>
+    </section>
+  </div>
+
+  <div id="confirmModal" class="modalBackdrop hidden" role="dialog" aria-modal="true">
+    <section class="confirmBox">
+      <div id="confirmIcon" class="confirmIcon">✓</div>
+      <h3 id="confirmTitle">확인해주세요</h3>
+      <div id="confirmBody"></div>
+      <div class="confirmActions"><button id="confirmCancel" class="secondary">아니오</button><button id="confirmOk" class="primary">확인</button></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

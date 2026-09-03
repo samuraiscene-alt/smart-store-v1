@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f6f2ee" />
+  <title>Smart Store Admin</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="adminBody">
+  <div class="adminShell">
+    <header class="adminHeader">
+      <div><p class="eyebrow">SMART STORE</p><h1>관리자</h1></div>
+      <a href="index.html" class="secondary mini">손님 화면</a>
+    </header>
+
+    <section class="adminSummary">
+      <article><small>오늘 예약</small><b id="todayReservations">0</b></article>
+      <article><small>서비스</small><b id="serviceCount">0</b></article>
+      <article><small>담당자</small><b id="staffCount">0</b></article>
+    </section>
+
+    <nav class="adminTabs">
+      <button class="active" data-tab="store">매장</button>
+      <button data-tab="services">서비스</button>
+      <button data-tab="staff">담당자</button>
+      <button data-tab="schedule">시간/휴무</button>
+      <button data-tab="reservations">예약</button>
+    </nav>
+
+    <main>
+      <section class="adminPanel active" data-panel="store">
+        <div class="panelTitle"><div><p class="eyebrow">STORE</p><h2>매장 기본정보</h2></div><button class="primary mini" id="saveStore">저장</button></div>
+        <div class="formCard card">
+          <label class="field"><span>상호</span><input id="aStoreName" /></label>
+          <label class="field"><span>메인 문구</span><input id="aTagline" /></label>
+          <label class="field"><span>전화번호</span><input id="aPhone" inputmode="tel" /></label>
+          <label class="field"><span>주소</span><input id="aAddress" /></label>
+          <label class="field"><span>지도 링크</span><input id="aMap" /></label>
+          <label class="field"><span>직원 명칭</span><input id="aStaffLabel" placeholder="담당자 / 디자이너 / 선생님" /></label>
+          <label class="field"><span>공지 문구</span><textarea id="aNotice" rows="3"></textarea></label>
+        </div>
+        <div class="formCard card">
+          <div class="field"><span>첫 화면 인트로</span><div class="segmented" id="introMode"><button data-value="none">없음</button><button data-value="image">사진</button><button data-value="video">동영상</button></div></div>
+          <label class="field"><span>인트로 파일</span><input id="introFile" type="file" accept="image/*,video/*" /></label>
+          <small class="formNote">사진/동영상은 이 기기 브라우저에 데모용으로 저장됩니다. 상용판에서는 서버 스토리지로 연결합니다.</small>
+        </div>
+      </section>
+
+      <section class="adminPanel" data-panel="services">
+        <div class="panelTitle"><div><p class="eyebrow">SERVICES</p><h2>서비스 관리</h2></div><button class="primary mini" id="addService">＋ 추가</button></div>
+        <div id="adminServices" class="adminList"></div>
+      </section>
+
+      <section class="adminPanel" data-panel="staff">
+        <div class="panelTitle"><div><p class="eyebrow">TEAM</p><h2>담당자 관리</h2></div><button class="primary mini" id="addStaff">＋ 추가</button></div>
+        <label class="toggleRow card"><span><b>담당자 선택 사용</b><small>카페/식당처럼 필요 없으면 끌 수 있습니다.</small></span><input id="staffEnabled" type="checkbox" /></label>
+        <div id="adminStaff" class="adminList"></div>
+      </section>
+
+      <section class="adminPanel" data-panel="schedule">
+        <div class="panelTitle"><div><p class="eyebrow">SCHEDULE</p><h2>시간 & 휴무</h2></div><button class="primary mini" id="saveSchedule">저장</button></div>
+        <div class="formCard card">
+          <h3>매장 예약시간</h3>
+          <div class="timeRow"><label><span>시작</span><input id="openTime" type="time" /></label><span>~</span><label><span>종료</span><input id="closeTime" type="time" /></label></div>
+          <label class="field"><span>예약 간격</span><select id="slotMinutes"><option value="15">15분</option><option value="30">30분</option><option value="60">60분</option></select></label>
+          <p class="formNote">iPhone에서는 시간칸을 누르면 알람 설정처럼 휠 방식 시간 선택기가 열립니다.</p>
+        </div>
+        <div class="formCard card">
+          <h3>매장 정기 휴무</h3>
+          <div id="storeClosedDays" class="weekdayGrid"></div>
+        </div>
+        <div class="formCard card">
+          <h3>임시 휴무 / 특정일</h3>
+          <div class="inlineForm"><input id="specialClosedDate" type="date" /><input id="specialClosedReason" placeholder="예: 추석휴무" /><button id="addSpecialClosed" class="secondary mini">추가</button></div>
+          <div id="specialClosedList" class="chipList"></div>
+        </div>
+        <div class="formCard card">
+          <h3>담당자별 휴무</h3>
+          <div id="staffDaysOff"></div>
+        </div>
+      </section>
+
+      <section class="adminPanel" data-panel="reservations">
+        <div class="panelTitle"><div><p class="eyebrow">BOOKINGS</p><h2>예약 현황</h2></div></div>
+        <div id="reservationList" class="adminList"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="editModal" class="modalBackdrop hidden">
+    <section class="confirmBox editBox">
+      <div class="sheetTop"><h3 id="editTitle">편집</h3><button id="editClose" class="iconBtn">✕</button></div>
+      <div id="editFields"></div>
+      <div class="confirmActions"><button id="editDelete" class="danger">삭제</button><button id="editSave" class="primary">저장</button></div>
+    </section>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

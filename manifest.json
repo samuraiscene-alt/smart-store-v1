@@ -1,0 +1,9 @@
+{
+  "name":"Smart Store Demo",
+  "short_name":"SmartStore",
+  "start_url":"index.html",
+  "display":"standalone",
+  "background_color":"#f8f5f2",
+  "theme_color":"#f8f5f2",
+  "icons":[]
+}
