@@ -8,10 +8,30 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="adminBody">
-  <div class="adminShell">
+  <section id="adminAuthGate" class="authGate">
+    <div class="authCard card">
+      <p class="eyebrow">SMART STORE ADMIN</p>
+      <h1>관리자 로그인</h1>
+      <p id="authLead" class="formNote">매장 관리자 계정으로 로그인해주세요.</p>
+      <div id="loginPanel">
+        <label class="field"><span>이메일</span><input id="authEmail" type="email" autocomplete="email" placeholder="name@example.com" /></label>
+        <label class="field"><span>비밀번호</span><input id="authPassword" type="password" autocomplete="current-password" placeholder="6자 이상" /></label>
+        <div class="authActions"><button id="authSignIn" class="primary">로그인</button><button id="authSignUp" class="secondary">처음 등록</button></div>
+      </div>
+      <div id="claimPanel" class="hidden">
+        <p class="formNote">처음 한 번만 매장 등록코드를 입력하면 이 계정이 매장 관리자와 연결됩니다.</p>
+        <label class="field"><span>매장 등록코드</span><input id="claimCode" autocomplete="off" placeholder="등록코드 입력" /></label>
+        <button id="claimStore" class="primary full">이 매장 등록</button>
+        <button id="claimLogout" class="textBtn full">다른 계정으로 로그인</button>
+      </div>
+      <p id="authMessage" class="authMessage"></p>
+    </div>
+  </section>
+
+  <div id="adminApp" class="adminShell hidden">
     <header class="adminHeader">
       <div><p class="eyebrow">SMART STORE</p><h1>관리자</h1></div>
-      <a href="index.html" class="secondary mini">손님 화면</a>
+      <div class="adminHeaderActions"><a href="index.html" class="secondary mini">손님 화면</a><button id="logoutButton" class="textBtn mini">로그아웃</button></div>
     </header>
 
     <section class="adminSummary">
@@ -33,6 +53,10 @@
     <main>
       <section class="adminPanel active" data-panel="store">
         <div class="panelTitle"><div><p class="eyebrow">STORE</p><h2>매장 기본정보</h2></div><button class="primary mini" id="saveStore">저장</button></div>
+        <div class="cloudStatus card">
+          <div><b>Supabase 공용 데이터</b><small id="cloudStatusText">연결 확인 중...</small></div>
+          <button id="importLocalData" class="secondary mini hidden">이 기기 데이터 가져오기</button>
+        </div>
         <div class="formCard card">
           <label class="field"><span>상호</span><input id="aStoreName" /></label>
           <label class="field"><span>메인 문구</span><input id="aTagline" /></label>
@@ -45,7 +69,7 @@
         <div class="formCard card">
           <div class="field"><span>첫 화면 인트로</span><div class="segmented" id="introMode"><button data-value="none">없음</button><button data-value="image">사진</button><button data-value="video">동영상</button></div></div>
           <label class="field"><span>인트로 파일</span><input id="introFile" type="file" accept="image/*,video/*" /></label>
-          <small class="formNote">사진/동영상은 이 기기 브라우저에 데모용으로 저장됩니다. 상용판에서는 서버 스토리지로 연결합니다.</small>
+          <small class="formNote">사진/동영상은 Supabase Storage에 저장되어 모든 기기에서 동일하게 표시됩니다. 최대 15MB.</small>
         </div>
       </section>
 
@@ -139,6 +163,8 @@
     </section>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="cloud-config.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>
