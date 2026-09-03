@@ -7,7 +7,7 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=n=>Number(n||0).toLocaleString('ko-KR')+'원';
 
 const fallbackData={
-  store:{name:"S'nail",tagline:'당신의 일상에 작은 아름다움을',phone:'0212345678',address:'서울시 예시구 123',map:'https://map.naver.com/',staffLabel:'담당자',notice:'예약 전 휴무일과 담당자 일정을 확인해주세요.',introMode:'none',introMedia:'',staffEnabled:true},
+  store:{name:"S'nail",tagline:'당신의 일상에 작은 아름다움을',phone:'0212345678',address:'서울시 예시구 123',map:'https://map.naver.com/',staffLabel:'담당자',notice:'예약 전 휴무일과 담당자 일정을 확인해주세요.',introMode:'none',introMedia:'',staffEnabled:true,reservationApprovalMode:'auto'},
   schedule:{open:'10:00',close:'20:00',slotMinutes:30,closedDays:[1],specialClosed:[],staffSpecialClosures:[]},
   services:[],staff:[]
 };
@@ -25,7 +25,7 @@ function mapPayload(payload){
     store:{
       id:st.id,name:st.name||"S'nail",tagline:st.tagline||'',phone:st.phone||'',address:st.address||'',map:st.map_url||'',
       staffLabel:st.staff_label||'담당자',notice:st.notice||'',introMode:st.intro_mode||'none',introMedia:st.intro_media_url||'',
-      staffEnabled:st.staff_enabled!==false
+      staffEnabled:st.staff_enabled!==false,reservationApprovalMode:st.reservation_approval_mode||'auto'
     },
     schedule:{
       open:timeHHMM(st.opening_time||'10:00'),close:timeHHMM(st.closing_time||'20:00'),slotMinutes:Number(st.slot_minutes||30),
@@ -191,13 +191,14 @@ $('#finalReview').onclick=()=>{
   const name=$('#customerName').value.trim(),phone=$('#customerPhone').value.trim();
   if(!name||phone.replace(/\D/g,'').length<9){showConfirm({title:'예약자 정보를 확인해주세요',body:'<p>이름과 올바른 전화번호를 입력해주세요.</p>',ok:'확인',single:true});return}
   const svc=data.services.find(s=>s.id===booking.serviceId);const st=booking.staffId==='any'?'상관없음':(data.staff.find(s=>s.id===booking.staffId)?.name||'-');
-  showConfirm({title:'예약 내용을 확인해주세요',body:`<div class="reviewList"><div><span>서비스</span><b>${esc(svc.name)}</b></div><div><span>${esc(data.store.staffLabel)}</span><b>${esc(st)}</b></div><div><span>날짜</span><b>${formatDate(booking.date)}</b></div><div><span>시간</span><b>${booking.time}</b></div><div><span>예약자</span><b>${esc(name)}</b></div><div><span>예상금액</span><b>${money(svc.price)}</b></div></div><p>이 내용으로 예약하시겠습니까?</p>`,ok:'예약확정',cancel:'수정하기',onOk:()=>createReservation(name,phone,svc)});
+  const manual=data.store.reservationApprovalMode==='manual';
+  showConfirm({title:'예약 내용을 확인해주세요',body:`<div class="reviewList"><div><span>서비스</span><b>${esc(svc.name)}</b></div><div><span>${esc(data.store.staffLabel)}</span><b>${esc(st)}</b></div><div><span>날짜</span><b>${formatDate(booking.date)}</b></div><div><span>시간</span><b>${booking.time}</b></div><div><span>예약자</span><b>${esc(name)}</b></div><div><span>예상금액</span><b>${money(svc.price)}</b></div></div><p>${manual?'이 내용으로 예약을 신청하시겠습니까?':'이 내용으로 예약하시겠습니까?'}</p>`,ok:manual?'예약신청':'예약확정',cancel:'수정하기',onOk:()=>createReservation(name,phone,svc)});
 };
 async function createReservation(name,phone,svc){
   if(!cloudReady){showConfirm({title:'인터넷 연결을 확인해주세요',body:'<p>예약은 온라인 상태에서만 확정할 수 있습니다.</p>',ok:'확인',single:true});return}
   $('#confirmOk').disabled=true;
   const staffAny=!data.store.staffEnabled||booking.staffId==='any'||!booking.staffId;
-  const {data:id,error}=await sb.rpc('create_public_reservation',{
+  const {data:result,error}=await sb.rpc('create_public_reservation_v2',{
     p_slug:STORE_SLUG,p_customer_name:name,p_customer_phone:phone,p_service_id:svc.id,
     p_staff_id:staffAny?null:booking.staffId,p_staff_any:staffAny,p_date:booking.date,p_time:booking.time
   });
@@ -207,7 +208,12 @@ async function createReservation(name,phone,svc){
     availabilityCache.delete(booking.date);return;
   }
   availabilityCache.delete(booking.date);closeBooking();
-  showConfirm({title:'예약이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 확정되었습니다.</p>`,ok:'확인',single:true});
+  const savedStatus=result?.status||'예약확정';
+  if(savedStatus==='예약대기'){
+    showConfirm({title:'예약 신청이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 접수되었습니다.<br>매장 확인 후 예약이 확정됩니다.</p>`,ok:'확인',single:true});
+  }else{
+    showConfirm({title:'예약이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 확정되었습니다.</p>`,ok:'확인',single:true});
+  }
 }
 function formatPhone(value){
   const n=String(value||'').replace(/\D/g,'').slice(0,11);

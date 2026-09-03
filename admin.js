@@ -82,7 +82,7 @@ async function loadAdminData(){
   ]);
   const firstError=[storeR,servicesR,staffR,ssR,closedR,specialR,daysR,customersR,resR].find(x=>x.error)?.error;if(firstError)throw firstError;
   const st=storeR.data;
-  data.store={id:st.id,name:st.name,tagline:st.tagline||'',phone:st.phone||'',address:st.address||'',map:st.map_url||'',staffLabel:st.staff_label||'담당자',notice:st.notice||'',introMode:st.intro_mode||'none',introMedia:st.intro_media_url||'',staffEnabled:st.staff_enabled!==false};
+  data.store={id:st.id,name:st.name,tagline:st.tagline||'',phone:st.phone||'',address:st.address||'',map:st.map_url||'',staffLabel:st.staff_label||'담당자',notice:st.notice||'',introMode:st.intro_mode||'none',introMedia:st.intro_media_url||'',staffEnabled:st.staff_enabled!==false,reservationApprovalMode:st.reservation_approval_mode||'auto'};
   data.schedule={open:timeHHMM(st.opening_time),close:timeHHMM(st.closing_time),slotMinutes:Number(st.slot_minutes||30),closedDays:(closedR.data||[]).map(x=>Number(x.weekday)),specialClosed:(specialR.data||[]).map(x=>({id:x.id,date:x.closed_date,reason:x.reason||'',isClosed:x.is_closed!==false,open:x.opening_time?timeHHMM(x.opening_time):null,close:x.closing_time?timeHHMM(x.closing_time):null}))};
   data.services=(servicesR.data||[]).map(s=>({id:s.id,name:s.name,price:Number(s.price||0),duration:Number(s.duration_minutes||30),desc:s.description||'',active:s.active!==false}));
   data.staff=(staffR.data||[]).map(s=>({id:s.id,name:s.name,specialty:s.specialty||'',active:s.active!==false,services:(ssR.data||[]).filter(x=>x.staff_id===s.id).map(x=>x.service_id),daysOff:(daysR.data||[]).filter(x=>x.staff_id===s.id).map(x=>Number(x.weekday))}));
@@ -95,13 +95,14 @@ async function loadAdminData(){
 function serviceNamesForStaff(st){const names=(st.services||[]).map(id=>data.services.find(s=>s.id===id)?.name).filter(Boolean);return names.length?names.join(' · '):'없음'}
 function renderAll(){fillStore();renderServices();renderStaff();renderSchedule();renderReservations();renderCustomers();$('#serviceCount').textContent=data.services.filter(x=>x.active!==false).length;$('#staffCount').textContent=data.staff.filter(x=>x.active!==false).length;$('#customerCount').textContent=data.customers.filter(x=>!x.archivedAt).length;const today=new Date().toISOString().slice(0,10);$('#todayReservations').textContent=data.reservations.filter(r=>r.date===today&&!['취소','노쇼'].includes(r.status)).length}
 function fillStore(){
-  $('#aStoreName').value=data.store.name||'';$('#aTagline').value=data.store.tagline||'';$('#aPhone').value=data.store.phone||'';$('#aAddress').value=data.store.address||'';$('#aMap').value=data.store.map||'';$('#aStaffLabel').value=data.store.staffLabel||'담당자';$('#aNotice').value=data.store.notice||'';$$('#introMode button').forEach(b=>b.classList.toggle('active',b.dataset.value===data.store.introMode));$('#staffEnabled').checked=!!data.store.staffEnabled;
+  $('#aStoreName').value=data.store.name||'';$('#aTagline').value=data.store.tagline||'';$('#aPhone').value=data.store.phone||'';$('#aAddress').value=data.store.address||'';$('#aMap').value=data.store.map||'';$('#aStaffLabel').value=data.store.staffLabel||'담당자';$('#aNotice').value=data.store.notice||'';$$('#introMode button').forEach(b=>b.classList.toggle('active',b.dataset.value===data.store.introMode));$$('#reservationApprovalMode button').forEach(b=>b.classList.toggle('active',b.dataset.value===(data.store.reservationApprovalMode||'auto')));$('#staffEnabled').checked=!!data.store.staffEnabled;
 }
 $('#saveStore').onclick=async()=>{
   const patch={name:$('#aStoreName').value.trim(),tagline:$('#aTagline').value.trim(),phone:$('#aPhone').value.trim(),address:$('#aAddress').value.trim(),map_url:$('#aMap').value.trim(),staff_label:$('#aStaffLabel').value.trim()||'담당자',notice:$('#aNotice').value.trim()};
   const {error}=await sb.from('stores').update(patch).eq('id',storeId);if(error){alert(error.message);return}await loadAdminData();flashSaved($('#saveStore'));
 };
 $('#introMode').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const {error}=await sb.from('stores').update({intro_mode:b.dataset.value}).eq('id',storeId);if(error){alert(error.message);return}await loadAdminData()};
+$('#reservationApprovalMode').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const mode=b.dataset.value;if(!['auto','manual'].includes(mode))return;const {error}=await sb.from('stores').update({reservation_approval_mode:mode}).eq('id',storeId);if(error){alert(error.message);return}await loadAdminData()};
 $('#introFile').onchange=async e=>{
   const f=e.target.files?.[0];if(!f)return;if(f.size>15*1024*1024){alert('15MB 이하 파일을 사용해주세요.');return}
   const ext=(f.name.split('.').pop()||'bin').toLowerCase();const path=`${storeId}/intro-${Date.now()}.${ext}`;

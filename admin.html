@@ -67,6 +67,18 @@
           <label class="field"><span>공지 문구</span><textarea id="aNotice" rows="3"></textarea></label>
         </div>
         <div class="formCard card">
+          <h3>예약 승인 방식</h3>
+          <div class="field">
+            <span>손님 예약 처리</span>
+            <div class="segmented" id="reservationApprovalMode" style="grid-template-columns:repeat(2,1fr)">
+              <button data-value="auto">자동확정</button>
+              <button data-value="manual">관리자승인</button>
+            </div>
+          </div>
+          <small class="formNote">자동확정은 예약 즉시 확정됩니다. 관리자승인은 예약대기로 접수되고 관리자가 예약 메뉴에서 확정합니다.</small>
+        </div>
+
+        <div class="formCard card">
           <div class="field"><span>첫 화면 인트로</span><div class="segmented" id="introMode"><button data-value="none">없음</button><button data-value="image">사진</button><button data-value="video">동영상</button></div></div>
           <label class="field"><span>인트로 파일</span><input id="introFile" type="file" accept="image/*,video/*" /></label>
           <small class="formNote">사진/동영상은 Supabase Storage에 저장되어 모든 기기에서 동일하게 표시됩니다. 최대 15MB.</small>
