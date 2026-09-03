@@ -11,7 +11,7 @@ const defaults={
  staff:[
   {id:'st1',name:'김원장',specialty:'아트 · 젤',services:['svc1','svc2','svc3'],daysOff:[2]},
   {id:'st2',name:'이실장',specialty:'프렌치 · 케어',services:['svc1','svc2','svc3'],daysOff:[4]}
- ],reservations:[]
+ ],reservations:[],customers:[],deletedCustomerPhones:[]
 };
 function load(){try{return deepMerge(structuredClone(defaults),JSON.parse(localStorage.getItem(KEY)||'{}'))}catch{return structuredClone(defaults)}}
 function deepMerge(a,b){for(const k in b){if(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k]) a[k]=deepMerge(a[k],b[k]); else a[k]=b[k]}return a}
@@ -19,6 +19,10 @@ function save(){localStorage.setItem(KEY,JSON.stringify(data))}
 let data=load();
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=n=>Number(n).toLocaleString('ko-KR')+'원';
+const digits=v=>String(v||'').replace(/\D/g,'');
+function formatPhone(v){const d=digits(v);if(d.length===11)return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;if(d.length===10)return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;return v||''}
+function ensureCustomer(name,phone){data.customers=Array.isArray(data.customers)?data.customers:[];data.deletedCustomerPhones=Array.isArray(data.deletedCustomerPhones)?data.deletedCustomerPhones:[];const p=digits(phone);data.deletedCustomerPhones=data.deletedCustomerPhones.filter(x=>x!==p);let c=data.customers.find(x=>digits(x.phone)===p);if(!c){c={id:'c'+Date.now()+Math.random().toString(36).slice(2,6),name,phone:p,note:'',archived:false,createdAt:new Date().toISOString()};data.customers.push(c)}else{c.name=name||c.name;c.phone=p;c.archived=false}return c}
+
 
 function render(){
  $('#storeName').textContent=data.store.name; $('#introBrand').textContent=data.store.name.split(' ')[0]; $('#storeTagline').textContent=data.store.tagline;
@@ -71,7 +75,7 @@ function renderTimes(){const grid=$('#timeGrid'),status=$('#dayStatus');grid.inn
  slots.forEach(t=>{const disabled=slotUnavailable(booking.date,t,svc?.duration||data.schedule.slotMinutes,booking.staffId);const b=document.createElement('button');b.className='timeBtn';b.textContent=t;b.disabled=disabled;b.onclick=()=>confirmTime(t);grid.appendChild(b)})
 }
 function makeSlots(open,close,step){let [h,m]=open.split(':').map(Number),[eh,em]=close.split(':').map(Number),a=[];let cur=h*60+m,end=eh*60+em;while(cur<end){a.push(`${String(Math.floor(cur/60)).padStart(2,'0')}:${String(cur%60).padStart(2,'0')}`);cur+=Number(step)}return a}
-function slotUnavailable(date,time,duration,staffId){const start=toMin(time),end=start+duration,close=toMin(data.schedule.close);if(end>close)return true;return data.reservations.some(r=>r.date===date&&r.status!=='취소'&&(staffId==='any'||!staffId||r.staffId===staffId||r.staffId==='any')&&overlap(start,end,toMin(r.time),toMin(r.time)+Number(r.duration||30)))}
+function slotUnavailable(date,time,duration,staffId){const start=toMin(time),end=start+duration;return data.reservations.some(r=>r.date===date&&r.status!=='취소'&&(staffId==='any'||!staffId||r.staffId===staffId||r.staffId==='any')&&overlap(start,end,toMin(r.time),toMin(r.time)+Number(r.duration||30)))}
 const toMin=t=>{const[a,b]=t.split(':').map(Number);return a*60+b};const overlap=(a,b,c,d)=>Math.max(a,c)<Math.min(b,d);
 function confirmTime(t){showConfirm({title:'시간을 선택하시겠습니까?',body:`<p><b>${formatDate(booking.date)} ${t}</b>로 선택합니다.</p>`,ok:'선택',cancel:'아니오',onOk:()=>{booking.time=t;closeTime();renderBooking()}})}
 function formatDate(iso){const d=new Date(iso+'T12:00:00');return `${d.getMonth()+1}월 ${d.getDate()}일 ${DAYS[d.getDay()]}요일`}
@@ -82,11 +86,13 @@ function showConfirm({title,body,ok='확인',cancel='아니오',onOk,single=fals
 function hideConfirm(){ $('#confirmModal').classList.add('hidden');confirmCb=null }
 $('#confirmCancel').onclick=hideConfirm;$('#confirmOk').onclick=()=>{const cb=confirmCb;hideConfirm();cb?.()};
 $('#finalReview').onclick=()=>{const name=$('#customerName').value.trim(),phone=$('#customerPhone').value.trim();if(!name||phone.replace(/\D/g,'').length<9){showConfirm({title:'예약자 정보를 확인해주세요',body:'<p>이름과 올바른 전화번호를 입력해주세요.</p>',ok:'확인',cancel:'닫기'});return}const svc=data.services.find(s=>s.id===booking.serviceId);const st=booking.staffId==='any'?'상관없음':(data.staff.find(s=>s.id===booking.staffId)?.name||'-');showConfirm({title:'예약 내용을 확인해주세요',body:`<div class="reviewList"><div><span>서비스</span><b>${esc(svc.name)}</b></div><div><span>${esc(data.store.staffLabel)}</span><b>${esc(st)}</b></div><div><span>날짜</span><b>${formatDate(booking.date)}</b></div><div><span>시간</span><b>${booking.time}</b></div><div><span>예약자</span><b>${esc(name)}</b></div><div><span>예상금액</span><b>${money(svc.price)}</b></div></div><p>이 내용으로 예약하시겠습니까?</p>`,ok:'예약확정',cancel:'수정하기',onOk:()=>createReservation(name,phone,svc)})};
-function createReservation(name,phone,svc){const r={id:'r'+Date.now(),serviceId:svc.id,serviceName:svc.name,staffId:booking.staffId||'any',staffName:booking.staffId==='any'?'상관없음':(data.staff.find(x=>x.id===booking.staffId)?.name||''),date:booking.date,time:booking.time,duration:svc.duration,customerName:name,customerPhone:phone,status:'예약확정',price:svc.price,createdAt:new Date().toISOString()};data.reservations.push(r);save();closeBooking();showConfirm({title:'예약이 완료되었습니다',body:`<p><b>${formatDate(r.date)} ${r.time}</b><br>${esc(r.serviceName)} 예약이 확정되었습니다.</p>`,ok:'확인',single:true});}
+function createReservation(name,phone,svc){const customer=ensureCustomer(name,phone);const r={id:'r'+Date.now(),customerId:customer.id,serviceId:svc.id,serviceName:svc.name,staffId:booking.staffId||'any',staffName:booking.staffId==='any'?'상관없음':(data.staff.find(x=>x.id===booking.staffId)?.name||''),date:booking.date,time:booking.time,duration:svc.duration,customerName:name,customerPhone:digits(phone),status:'예약확정',price:svc.price,createdAt:new Date().toISOString()};data.reservations.push(r);save();closeBooking();showConfirm({title:'예약이 완료되었습니다',body:`<p><b>${formatDate(r.date)} ${r.time}</b><br>${esc(r.serviceName)} 예약이 확정되었습니다.</p>`,ok:'확인',single:true});}
 
 $('[data-action="open-booking"]')?.addEventListener('click',()=>openBooking());document.addEventListener('click',e=>{if(e.target.closest('[data-action="open-booking"]'))openBooking();if(e.target.closest('[data-action="close-booking"]'))closeBooking();if(e.target.closest('[data-action="close-time"]'))closeTime();const s=e.target.closest('[data-scroll]');if(s){const id=s.dataset.scroll;if(id==='top')scrollTo({top:0,behavior:'smooth'});else document.getElementById(id)?.scrollIntoView({behavior:'smooth'})}const bs=e.target.closest('[data-book-service]');if(bs)openBooking({serviceId:bs.dataset.bookService});const bst=e.target.closest('[data-book-staff]');if(bst)openBooking({staffId:bst.dataset.bookStaff})});
 $('#openTimePicker').onclick=openTime;
 $('#timeBackToStaff').onclick=backFromTime;
+$('#customerPhone').addEventListener('input',e=>{const d=digits(e.target.value).slice(0,11);e.target.value=formatPhone(d)});
 $('#saveContact').onclick=()=>{const v=`BEGIN:VCARD\nVERSION:3.0\nFN:${data.store.name}\nORG:${data.store.name}\nTEL;TYPE=WORK:${data.store.phone}\nADR;TYPE=WORK:;;${data.store.address};;;;\nNOTE:${data.store.tagline}\nEND:VCARD`;const blob=new Blob([v],{type:'text/vcard;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${data.store.name}.vcf`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+window.addEventListener('storage',e=>{if(e.key===KEY){data=load();render()}});
 render();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('service-worker.js').catch(()=>{});

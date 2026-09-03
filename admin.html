@@ -16,6 +16,7 @@
 
     <section class="adminSummary">
       <article><small>오늘 예약</small><b id="todayReservations">0</b></article>
+      <article><small>고객</small><b id="customerCount">0</b></article>
       <article><small>서비스</small><b id="serviceCount">0</b></article>
       <article><small>담당자</small><b id="staffCount">0</b></article>
     </section>
@@ -26,6 +27,7 @@
       <button data-tab="staff">담당자</button>
       <button data-tab="schedule">시간/휴무</button>
       <button data-tab="reservations">예약</button>
+      <button data-tab="customers">고객</button>
     </nav>
 
     <main>
@@ -85,6 +87,20 @@
         <div class="panelTitle"><div><p class="eyebrow">BOOKINGS</p><h2>예약 현황</h2></div></div>
         <div id="reservationList" class="adminList"></div>
       </section>
+
+      <section class="adminPanel" data-panel="customers">
+        <div class="panelTitle"><div><p class="eyebrow">CRM</p><h2>고객 관리</h2></div></div>
+        <div class="customerSearchWrap">
+          <input id="customerSearch" class="customerSearch" type="search" inputmode="search" autocomplete="off" placeholder="이름 또는 전화번호 검색" />
+          <div id="customerSuggestions" class="customerSuggestions hidden"></div>
+        </div>
+        <div class="customerFilters" role="group" aria-label="고객 보기">
+          <button id="showActiveCustomers" class="active">고객명단</button>
+          <button id="showArchivedCustomers">보관함</button>
+        </div>
+        <p class="formNote">고객명단은 이름 ㄱㄴㄷ 순으로 자동 정렬됩니다.</p>
+        <div id="customerList" class="adminList"></div>
+      </section>
     </main>
   </div>
 
@@ -93,6 +109,33 @@
       <div class="sheetTop"><h3 id="editTitle">편집</h3><button id="editClose" class="iconBtn">✕</button></div>
       <div id="editFields"></div>
       <div class="confirmActions"><button id="editDelete" class="danger">삭제</button><button id="editSave" class="primary">저장</button></div>
+    </section>
+  </div>
+
+
+  <div id="customerModal" class="modalBackdrop hidden">
+    <section class="confirmBox editBox customerDetailBox">
+      <div class="sheetTop"><div><p class="eyebrow">CUSTOMER</p><h3 id="customerDetailName">고객</h3></div><button id="customerClose" class="iconBtn">✕</button></div>
+      <div class="customerIdentity"><strong id="customerDetailPhone"></strong><small id="customerDetailCreated"></small></div>
+      <div class="customerStats">
+        <article><small>이용/예약</small><b id="customerVisitCount">0</b></article>
+        <article><small>누적금액</small><b id="customerTotalSpend">0원</b></article>
+        <article><small>최근 이용</small><b id="customerLastVisit">-</b></article>
+      </div>
+      <label class="field"><span>고객 메모</span><textarea id="customerNote" rows="3" placeholder="관리자 메모를 입력하세요"></textarea></label>
+      <button id="saveCustomerNote" class="secondary full">메모 저장</button>
+      <div class="customerHistoryHead"><h4>이용 히스토리</h4><small>서비스 · 담당자 · 금액</small></div>
+      <div id="customerHistory" class="customerHistory"></div>
+      <div class="customerActions"><button id="archiveCustomer" class="danger">고객 보관</button><button id="permanentDeleteCustomer" class="textBtn dangerText hidden">영구삭제</button></div>
+    </section>
+  </div>
+
+  <div id="actionModal" class="modalBackdrop hidden">
+    <section class="confirmBox actionConfirmBox">
+      <div class="confirmIcon">!</div>
+      <h3 id="actionTitle">확인해주세요</h3>
+      <p id="actionText"></p>
+      <div class="confirmActions"><button id="actionNo" class="secondary">아니오</button><button id="actionYes" class="primary">예</button></div>
     </section>
   </div>
 
