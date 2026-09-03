@@ -220,3 +220,71 @@ async function importLocalData(){
 }
 
 initAuth();
+/* === CRM metrics + Korea time fix (2026-09-04) === */
+(function(){
+  function kstDateString(value=new Date()){
+    const d=value instanceof Date?value:new Date(value);
+    if(Number.isNaN(d.getTime()))return '-';
+    const parts=new Intl.DateTimeFormat('ko-KR',{
+      timeZone:'Asia/Seoul',
+      year:'numeric',
+      month:'2-digit',
+      day:'2-digit'
+    }).formatToParts(d);
+    const get=t=>parts.find(p=>p.type===t)?.value||'';
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  }
+
+  const stats=document.querySelector('.customerStats');
+  if(stats){
+    stats.style.gridTemplateColumns='repeat(2,1fr)';
+    stats.innerHTML=`
+      <article><small>예약</small><b id="customerReservationCount">0</b></article>
+      <article><small>방문</small><b id="customerVisitCount">0</b></article>
+      <article><small>누적 이용금액</small><b id="customerTotalSpend">0원</b></article>
+      <article><small>최근 방문</small><b id="customerLastVisit">-</b></article>
+    `;
+  }
+  const historyTitle=document.querySelector('.customerHistoryHead h4');
+  if(historyTitle)historyTitle.textContent='예약/이용 히스토리';
+
+  const originalRenderAll=renderAll;
+  renderAll=function(){
+    originalRenderAll();
+    const today=kstDateString();
+    $('#todayReservations').textContent=data.reservations.filter(
+      r=>r.date===today&&!['취소','노쇼'].includes(r.status)
+    ).length;
+  };
+
+  openCustomer=function(id){
+    const c=data.customers.find(x=>x.id===id);
+    if(!c)return;
+    selectedCustomerId=id;
+    $('#customerSuggestions').classList.add('hidden');
+    $('#customerModal').classList.remove('hidden');
+
+    $('#customerDetailName').textContent=c.name;
+    $('#customerDetailPhone').textContent=formatPhone(c.phone);
+    $('#customerDetailCreated').textContent=`등록 ${kstDateString(c.createdAt)}`;
+    $('#customerNote').value=c.memo||'';
+
+    const rs=customerReservations(id);
+    const reservations=rs.filter(r=>!['취소','노쇼'].includes(r.status));
+    const visits=rs.filter(r=>r.status==='방문완료');
+
+    $('#customerReservationCount').textContent=reservations.length;
+    $('#customerVisitCount').textContent=visits.length;
+    $('#customerTotalSpend').textContent=money(
+      visits.reduce((sum,r)=>sum+Number(r.price||0),0)
+    );
+    $('#customerLastVisit').textContent=visits[0]?.date||'-';
+
+    $('#customerHistory').innerHTML=rs.length
+      ?rs.map(r=>`<article><div><b>${r.date} ${r.time}</b><span class="reservationStatus">${r.status}</span></div><p>${esc(r.serviceName)} · ${esc(r.staffName||'담당없음')} · ${money(r.price)}</p></article>`).join('')
+      :'<p class="formNote">예약/이용 기록이 없습니다.</p>';
+
+    $('#archiveCustomer').textContent=c.archivedAt?'고객 복구':'고객 보관';
+    $('#permanentDeleteCustomer').classList.toggle('hidden',!c.archivedAt);
+  };
+})();
