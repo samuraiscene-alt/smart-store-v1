@@ -1,0 +1,11 @@
+{
+  "id": "admin.html",
+  "name": "Smart Store Admin",
+  "short_name": "Store Admin",
+  "start_url": "admin.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f3ef",
+  "theme_color": "#f6f2ee",
+  "icons": []
+}

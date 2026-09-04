@@ -208,11 +208,40 @@ async function createReservation(name,phone,svc){
     availabilityCache.delete(booking.date);return;
   }
   availabilityCache.delete(booking.date);closeBooking();
+  const reservationId=result?.id||null;
   const savedStatus=result?.status||'예약확정';
+  if(reservationId){
+    try{localStorage.setItem('smartStoreLastReservationId',reservationId)}catch{}
+    window.SmartStorePush?.sendNewReservation(reservationId);
+  }
+  const pushBox=reservationId?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eadfda">
+    <button id="bookingPushEnable" class="secondary full" type="button" style="margin-top:0">🔔 예약 알림 받기</button>
+    <small id="bookingPushHelp" style="display:block;margin-top:8px;color:#8e817b;line-height:1.45">예약 승인·거절 결과를 아이폰 알림으로 받아보세요.</small>
+  </div>`:'';
   if(savedStatus==='예약대기'){
-    showConfirm({title:'예약 신청이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 접수되었습니다.<br>매장 확인 후 예약이 확정됩니다.</p>`,ok:'확인',single:true});
+    showConfirm({title:'예약 신청이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 접수되었습니다.<br>매장 확인 후 예약이 확정됩니다.</p>${pushBox}`,ok:'확인',single:true});
   }else{
-    showConfirm({title:'예약이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 확정되었습니다.</p>`,ok:'확인',single:true});
+    showConfirm({title:'예약이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 확정되었습니다.</p>${pushBox}`,ok:'확인',single:true});
+  }
+  const pushBtn=document.getElementById('bookingPushEnable');
+  if(pushBtn){
+    pushBtn.onclick=async()=>{
+      pushBtn.disabled=true;
+      const help=document.getElementById('bookingPushHelp');
+      try{
+        await window.SmartStorePush.subscribeCustomer(reservationId);
+        pushBtn.textContent='예약 알림 켜짐 ✓';
+        if(help)help.textContent='이 예약의 승인·거절 결과를 푸시 알림으로 받습니다.';
+      }catch(e){
+        pushBtn.disabled=false;
+        if(e?.code==='INSTALL_REQUIRED'){
+          if(help)help.textContent='아이폰에서는 이 매장을 홈 화면에 추가한 뒤 알림을 켤 수 있습니다.';
+          alert('아이폰에서는 Safari의 공유 버튼 → 홈 화면에 추가한 뒤, 홈화면의 매장 아이콘으로 실행해서 예약 알림을 켜주세요.');
+        }else{
+          alert(e?.message||'예약 알림 설정에 실패했습니다.');
+        }
+      }
+    };
   }
 }
 function formatPhone(value){
