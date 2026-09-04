@@ -7,6 +7,33 @@
   const DAYS = ['일','월','화','수','목','금','토'];
   const handled = new Set();
 
+  const PUSH_OPEN_DB='smart-store-push-open-v1';
+  const PUSH_OPEN_STORE='kv';
+  function openPushOpenDb(){
+    return new Promise((resolve,reject)=>{
+      const req=indexedDB.open(PUSH_OPEN_DB,1);
+      req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(PUSH_OPEN_STORE))req.result.createObjectStore(PUSH_OPEN_STORE,{keyPath:'key'});};
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error);
+    });
+  }
+  async function consumePendingReservation(){
+    try{
+      const db=await openPushOpenDb();
+      const row=await new Promise((resolve,reject)=>{
+        const tx=db.transaction(PUSH_OPEN_STORE,'readwrite');
+        const store=tx.objectStore(PUSH_OPEN_STORE);
+        const get=store.get('customerReservation');
+        get.onsuccess=()=>{const value=get.result||null;store.delete('customerReservation');resolve(value);};
+        get.onerror=()=>reject(get.error);
+      });
+      db.close();
+      if(!row?.reservation_id)return null;
+      if(row.saved_at&&Date.now()-Number(row.saved_at)>24*60*60*1000)return null;
+      return row.reservation_id;
+    }catch(e){console.warn('push open read failed',e);return null;}
+  }
+
   const escHtml = (value='') => String(value).replace(/[&<>"']/g, ch => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[ch]));
@@ -106,24 +133,25 @@
     }
   }
 
-  function readUrl(){
+  async function readPendingOpen(){
     const params=new URLSearchParams(location.search);
-    const id=params.get('reservation_id');
-    if(id) openReservation(id);
+    let id=params.get('reservation_id');
+    if(!id)id=await consumePendingReservation();
+    if(id)openReservation(id);
   }
 
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',()=>setTimeout(readUrl,250));
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(readPendingOpen,250));
   }else{
-    setTimeout(readUrl,250);
+    setTimeout(readPendingOpen,250);
   }
 
-  window.addEventListener('pageshow',()=>setTimeout(readUrl,100));
-  window.addEventListener('focus',()=>setTimeout(readUrl,100));
+  window.addEventListener('pageshow',()=>setTimeout(readPendingOpen,100));
+  window.addEventListener('focus',()=>setTimeout(readPendingOpen,100));
   document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible') setTimeout(readUrl,100);
+    if(document.visibilityState==='visible') setTimeout(readPendingOpen,100);
   });
-  window.addEventListener('popstate',readUrl);
+  window.addEventListener('popstate',readPendingOpen);
 
   navigator.serviceWorker?.addEventListener('message',event=>{
     if(event.data?.type==='smart-store-open-reservation'){

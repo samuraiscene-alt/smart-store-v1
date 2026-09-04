@@ -9,6 +9,23 @@
   const PUSH_STORE_SLUG = PUSH_CONFIG.storeSlug;
   const pushSb = window.supabase.createClient(PUSH_CONFIG.supabaseUrl, PUSH_CONFIG.supabaseKey);
   const FUNCTION_URL = `${PUSH_CONFIG.supabaseUrl}/functions/v1/send-push`;
+  const SERVICE_WORKER_URL = 'service-worker.js?v=20260904-3';
+
+  async function ensureServiceWorker(){
+    if(!('serviceWorker' in navigator))throw new Error('서비스워커를 지원하지 않습니다.');
+    const reg=await navigator.serviceWorker.register(SERVICE_WORKER_URL,{scope:'./',updateViaCache:'none'});
+    try{await reg.update();}catch{}
+    const candidate=reg.installing||reg.waiting;
+    if(candidate&&candidate.state!=='activated'){
+      await new Promise(resolve=>{
+        const done=()=>resolve();
+        candidate.addEventListener('statechange',()=>{if(candidate.state==='activated')done()});
+        setTimeout(done,4000);
+      });
+    }
+    await navigator.serviceWorker.ready;
+    return reg;
+  }
 
   function isIOS(){
     return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -57,8 +74,7 @@
   async function getSubscription(){
     if(!supported())throw new Error('이 기기에서는 푸시 알림을 지원하지 않습니다.');
 
-    const reg=await navigator.serviceWorker.register('service-worker.js');
-    await navigator.serviceWorker.ready;
+    const reg=await ensureServiceWorker();
 
     const key=await publicKey();
     const wantedKey=b64ToUint8(key);
@@ -183,7 +199,7 @@
       }
       if(Notification.permission==='granted'){
         try{
-          const reg=await navigator.serviceWorker.register('service-worker.js');
+          const reg=await ensureServiceWorker();
           const sub=await reg.pushManager.getSubscription();
           if(sub){
             btn.textContent='관리자 푸시 알림 켜짐 ✓';
@@ -221,7 +237,7 @@
       const {data:{session}}=await pushSb.auth.getSession();
       if(!session)return;
 
-      const reg=await navigator.serviceWorker.register('service-worker.js');
+      const reg=await ensureServiceWorker();
       const sub=await reg.pushManager.getSubscription();
       if(sub)await subscribeAdmin();
     }catch{}
@@ -235,6 +251,7 @@
   };
 
   const start=()=>{
+    ensureServiceWorker().catch(err=>console.warn('service worker refresh failed',err));
     installAdminUi();
     setTimeout(syncExistingAdmin,250);
   };
