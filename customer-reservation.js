@@ -1,21 +1,34 @@
-/* Smart Store - customer push deep link */
+/* Smart Store - robust customer push deep link */
 (() => {
   const cfg = window.SMART_STORE_CONFIG;
   if (!cfg || !window.supabase) return;
 
   const detailSb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
   const DAYS = ['일','월','화','수','목','금','토'];
+  const handled = new Set();
 
   const escHtml = (value='') => String(value).replace(/[&<>"']/g, ch => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[ch]));
-
   const won = value => `${Number(value || 0).toLocaleString('ko-KR')}원`;
 
   function koreanDate(iso){
     const d = new Date(`${iso}T12:00:00`);
     if (Number.isNaN(d.getTime())) return String(iso || '');
     return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${DAYS[d.getDay()]}요일`;
+  }
+
+  function getShowConfirm(){
+    return typeof window.showConfirm === 'function' ? window.showConfirm : null;
+  }
+
+  async function waitForApp(){
+    for(let i=0;i<50;i++){
+      const fn=getShowConfirm();
+      if(fn) return fn;
+      await new Promise(resolve => setTimeout(resolve,100));
+    }
+    return null;
   }
 
   function detailBody(r, rejected=false){
@@ -32,68 +45,60 @@
     `;
   }
 
-  async function waitForApp(){
-    for(let i=0;i<20;i++){
-      if(typeof window.showConfirm === 'function' || typeof showConfirm === 'function') return;
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-
-  async function openReservationFromPush(){
-    const params = new URLSearchParams(location.search);
-    const reservationId = params.get('reservation_id');
-    if(!reservationId) return;
-
-    // 같은 알림을 새로고침할 때 반복 표시하지 않도록 주소를 먼저 정리합니다.
-    history.replaceState({}, '', location.pathname + location.hash);
+  async function openReservation(reservationId){
+    if(!reservationId || handled.has(reservationId)) return;
+    handled.add(reservationId);
 
     try{
-      const {data:r, error} = await detailSb.rpc('public_reservation_detail', {
-        p_reservation_id: reservationId
+      const {data:r,error}=await detailSb.rpc('public_reservation_detail',{
+        p_reservation_id:reservationId
       });
       if(error) throw error;
       if(!r) throw new Error('예약 정보를 찾을 수 없습니다.');
 
-      await waitForApp();
+      const show=await waitForApp();
+      if(!show) throw new Error('예약 화면이 준비되지 않았습니다.');
 
-      if(r.status === '예약거절'){
-        showConfirm({
+      if(r.status==='예약거절'){
+        show({
           title:'예약이 거절되었습니다',
-          body:detailBody(r, true),
+          body:detailBody(r,true),
           ok:'다시 예약하기',
           cancel:'닫기',
           onOk:()=>{
-            if(typeof openBooking === 'function'){
-              openBooking(r.service_id ? {serviceId:r.service_id} : {});
+            if(typeof window.openBooking==='function'){
+              window.openBooking(r.service_id?{serviceId:r.service_id}:{});
             }
           }
         });
-        return;
-      }
-
-      if(r.status === '예약확정'){
-        showConfirm({
+      }else if(r.status==='예약확정'){
+        show({
           title:'예약이 확정되었습니다 ✓',
-          body:detailBody(r, false),
+          body:detailBody(r,false),
           ok:'확인',
           single:true
         });
-        return;
+      }else{
+        show({
+          title:'예약 정보',
+          body:detailBody(r,false),
+          ok:'확인',
+          single:true
+        });
       }
 
-      showConfirm({
-        title:'예약 정보',
-        body:detailBody(r, false),
-        ok:'확인',
-        single:true
-      });
+      const clean=new URL(location.href);
+      clean.searchParams.delete('reservation_id');
+      clean.searchParams.delete('push_open');
+      history.replaceState({},'',clean.pathname+clean.search+clean.hash);
     }catch(err){
-      console.error('reservation deep link error', err);
-      await waitForApp();
-      if(typeof showConfirm === 'function'){
-        showConfirm({
+      handled.delete(reservationId);
+      console.error('reservation deep link error',err);
+      const show=await waitForApp();
+      if(show){
+        show({
           title:'예약 정보를 불러올 수 없습니다',
-          body:'<p>잠시 후 예약 메뉴에서 다시 확인해주세요.</p>',
+          body:'<p>잠시 후 다시 확인해주세요.</p>',
           ok:'확인',
           single:true
         });
@@ -101,9 +106,28 @@
     }
   }
 
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', () => setTimeout(openReservationFromPush, 150));
-  }else{
-    setTimeout(openReservationFromPush, 150);
+  function readUrl(){
+    const params=new URLSearchParams(location.search);
+    const id=params.get('reservation_id');
+    if(id) openReservation(id);
   }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(readUrl,250));
+  }else{
+    setTimeout(readUrl,250);
+  }
+
+  window.addEventListener('pageshow',()=>setTimeout(readUrl,100));
+  window.addEventListener('focus',()=>setTimeout(readUrl,100));
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible') setTimeout(readUrl,100);
+  });
+  window.addEventListener('popstate',readUrl);
+
+  navigator.serviceWorker?.addEventListener('message',event=>{
+    if(event.data?.type==='smart-store-open-reservation'){
+      openReservation(event.data.reservation_id);
+    }
+  });
 })();
