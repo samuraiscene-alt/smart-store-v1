@@ -208,6 +208,13 @@ async function createReservation(name,phone,svc){
     availabilityCache.delete(booking.date);return;
   }
   availabilityCache.delete(booking.date);closeBooking();
+
+  // 예약 성공 후 개인정보 입력칸을 비웁니다.
+  const customerNameInput=document.getElementById('customerName');
+  const customerPhoneInput=document.getElementById('customerPhone');
+  if(customerNameInput)customerNameInput.value='';
+  if(customerPhoneInput)customerPhoneInput.value='';
+
   const reservationId=result?.id||null;
   const savedStatus=result?.status||'예약확정';
   if(reservationId){
@@ -229,6 +236,12 @@ async function createReservation(name,phone,svc){
       pushBtn.disabled=true;
       const help=document.getElementById('bookingPushHelp');
       try{
+        if(!window.SmartStorePush || typeof window.SmartStorePush.subscribeCustomer!=='function'){
+          if(help)help.textContent='앱이 이전 버전을 사용 중입니다. 앱을 완전히 종료한 뒤 다시 실행해주세요.';
+          alert('스마트스토어가 이전 버전을 사용 중입니다. 앱을 완전히 종료한 뒤 다시 실행해주세요.');
+          pushBtn.disabled=false;
+          return;
+        }
         await window.SmartStorePush.subscribeCustomer(reservationId);
         pushBtn.textContent='예약 알림 켜짐 ✓';
         if(help)help.textContent='이 예약의 승인·거절 결과를 푸시 알림으로 받습니다.';
