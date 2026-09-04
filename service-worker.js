@@ -1,4 +1,4 @@
-const CACHE='smart-store-v1-20260904-pwa-push-1';
+const CACHE='smart-store-v1-20260904-pwa-push-vapid-fix-1';
 const ASSETS=['./','index.html','admin.html','styles.css','app.js','admin.js','admin-approval.js','push-client.js','cloud-config.js','manifest.json','admin-manifest.json'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))),self.clients.claim()])));

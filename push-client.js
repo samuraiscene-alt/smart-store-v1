@@ -51,7 +51,23 @@
     if(!supported())throw new Error('이 기기에서는 푸시 알림을 지원하지 않습니다.');
     const reg=await navigator.serviceWorker.register('service-worker.js');
     await navigator.serviceWorker.ready;
+
+    const key=await publicKey();
+    const wantedKey=b64ToUint8(key);
     let sub=await reg.pushManager.getSubscription();
+
+    if(sub){
+      const currentKey=sub.options?.applicationServerKey;
+      if(currentKey){
+        const current=new Uint8Array(currentKey);
+        const same=current.length===wantedKey.length && current.every((v,i)=>v===wantedKey[i]);
+        if(!same){
+          await sub.unsubscribe();
+          sub=null;
+        }
+      }
+    }
+
     if(!sub){
       if(isIOS()&&!isStandalone()){
         const err=new Error('아이폰에서는 이 페이지를 홈 화면에 추가한 뒤 알림을 켤 수 있습니다.');
@@ -60,10 +76,9 @@
       }
       const permission=await Notification.requestPermission();
       if(permission!=='granted')throw new Error('알림 허용이 필요합니다.');
-      const key=await publicKey();
       sub=await reg.pushManager.subscribe({
         userVisibleOnly:true,
-        applicationServerKey:b64ToUint8(key)
+        applicationServerKey:wantedKey
       });
     }
     return sub;
