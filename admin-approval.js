@@ -884,3 +884,337 @@ await loadAdminData();
 
   },250);
 })();
+/* 담당자 특정일 휴무 관리 */
+(() => {
+  let staffSpecialClosures = [];
+
+  function escSpecial(v=''){
+    return String(v).replace(/[&<>"']/g,m=>({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[m]));
+  }
+
+  function ensureStaffSpecialUi(){
+    if(document.getElementById('staffSpecialClosureCard')) return;
+
+    const staffDaysOff =
+      document.getElementById('staffDaysOff');
+
+    if(!staffDaysOff) return;
+
+    const currentCard =
+      staffDaysOff.closest('.formCard');
+
+    if(!currentCard) return;
+
+    const card =
+      document.createElement('div');
+
+    card.id='staffSpecialClosureCard';
+    card.className='formCard card';
+
+    card.innerHTML=`
+      <h3>담당자 특정일 휴무</h3>
+
+      <p class="formNote">
+        정기휴무와 별도로 특정 날짜만
+        담당자 휴무로 지정합니다.
+      </p>
+
+      <label class="field">
+        <span>담당자</span>
+        <select id="staffSpecialStaff"></select>
+      </label>
+
+      <label class="field">
+        <span>휴무 날짜</span>
+        <input
+          id="staffSpecialDate"
+          type="date">
+      </label>
+
+      <label class="field">
+        <span>사유</span>
+        <input
+          id="staffSpecialReason"
+          placeholder="예: 개인휴무">
+      </label>
+
+      <button
+        id="addStaffSpecialClosure"
+        type="button"
+        class="secondary full">
+        특정일 휴무 추가
+      </button>
+
+      <div
+        id="staffSpecialClosureList"
+        class="chipList"
+        style="margin-top:14px">
+      </div>
+    `;
+
+    currentCard.insertAdjacentElement(
+      'afterend',
+      card
+    );
+
+    document.getElementById(
+      'addStaffSpecialClosure'
+    ).onclick=addStaffSpecialClosure;
+
+    document.getElementById(
+      'staffSpecialClosureList'
+    ).onclick=async e=>{
+
+      const button=e.target.closest(
+        '[data-remove-staff-special]'
+      );
+
+      if(!button) return;
+
+      const id=
+        button.dataset.removeStaffSpecial;
+
+      const {error}=await sb
+        .from('staff_special_closures')
+        .delete()
+        .eq('id',id);
+
+      if(error){
+        alert(error.message);
+        return;
+      }
+
+      await loadStaffSpecialClosures();
+    };
+  }
+
+  function renderStaffOptions(){
+    const select=
+      document.getElementById(
+        'staffSpecialStaff'
+      );
+
+    if(!select) return;
+
+    const oldValue=select.value;
+
+    if(!data.staff.length){
+      select.innerHTML=
+        '<option value="">담당자 없음</option>';
+      return;
+    }
+
+    select.innerHTML=
+      data.staff
+        .filter(st=>st.active!==false)
+        .map(st=>`
+          <option value="${st.id}">
+            ${escSpecial(st.name)}
+          </option>
+        `)
+        .join('');
+
+    if(
+      oldValue &&
+      data.staff.some(
+        st=>st.id===oldValue
+      )
+    ){
+      select.value=oldValue;
+    }
+  }
+
+  function renderStaffSpecialList(){
+    const box=
+      document.getElementById(
+        'staffSpecialClosureList'
+      );
+
+    if(!box) return;
+
+    if(!staffSpecialClosures.length){
+      box.innerHTML=
+        '<p class="formNote">등록된 특정일 휴무가 없습니다.</p>';
+      return;
+    }
+
+    box.innerHTML=
+      staffSpecialClosures.map(row=>{
+
+        const staff=
+          data.staff.find(
+            st=>st.id===row.staff_id
+          );
+
+        const staffName=
+          staff?.name || '담당자';
+
+        return `
+          <span class="chip">
+            <b>${escSpecial(staffName)}</b>
+            · ${escSpecial(row.closed_date)}
+            ${row.reason
+              ? ` · ${escSpecial(row.reason)}`
+              : ''}
+            <button
+              type="button"
+              data-remove-staff-special="${row.id}">
+              ✕
+            </button>
+          </span>
+        `;
+      }).join('');
+  }
+
+  async function loadStaffSpecialClosures(){
+    ensureStaffSpecialUi();
+    renderStaffOptions();
+
+    if(!data.staff.length){
+      staffSpecialClosures=[];
+      renderStaffSpecialList();
+      return;
+    }
+
+    const ids=
+      data.staff.map(st=>st.id);
+
+    const {data:rows,error}=await sb
+      .from('staff_special_closures')
+      .select(
+        'id,staff_id,closed_date,reason'
+      )
+      .in('staff_id',ids)
+      .order('closed_date',{
+        ascending:true
+      });
+
+    if(error){
+      console.error(
+        'staff special closures load error',
+        error
+      );
+      return;
+    }
+
+    staffSpecialClosures=
+      rows || [];
+
+    renderStaffSpecialList();
+  }
+
+  async function addStaffSpecialClosure(){
+    const staffId=
+      document.getElementById(
+        'staffSpecialStaff'
+      )?.value;
+
+    const date=
+      document.getElementById(
+        'staffSpecialDate'
+      )?.value;
+
+    const reason=
+      document.getElementById(
+        'staffSpecialReason'
+      )?.value.trim() || '';
+
+    if(!staffId){
+      alert('담당자를 선택해주세요.');
+      return;
+    }
+
+    if(!date){
+      alert('휴무 날짜를 선택해주세요.');
+      return;
+    }
+
+    const button=
+      document.getElementById(
+        'addStaffSpecialClosure'
+      );
+
+    button.disabled=true;
+
+    const {error}=await sb
+      .from('staff_special_closures')
+      .upsert({
+        staff_id:staffId,
+        closed_date:date,
+        reason
+      },{
+        onConflict:
+          'staff_id,closed_date'
+      });
+
+    button.disabled=false;
+
+    if(error){
+      alert(error.message);
+      return;
+    }
+
+    document.getElementById(
+      'staffSpecialDate'
+    ).value='';
+
+    document.getElementById(
+      'staffSpecialReason'
+    ).value='';
+
+    await loadStaffSpecialClosures();
+
+    if(
+      typeof showAdminMessage==='function'
+    ){
+      showAdminMessage(
+        '담당자 특정일 휴무 저장 완료 ✓'
+      );
+    }
+  }
+
+  try{
+    const previousLoadAdminData=
+      loadAdminData;
+
+    loadAdminData=
+      async function(){
+
+        await previousLoadAdminData();
+
+        setTimeout(
+          loadStaffSpecialClosures,
+          0
+        );
+      };
+
+  }catch{}
+
+  let tries=0;
+
+  const timer=setInterval(()=>{
+    tries++;
+
+    if(
+      typeof data!=='undefined' &&
+      Array.isArray(data.staff) &&
+      document.getElementById(
+        'staffDaysOff'
+      )
+    ){
+      clearInterval(timer);
+      loadStaffSpecialClosures();
+    }
+
+    if(tries>60){
+      clearInterval(timer);
+    }
+
+  },250);
+})();
