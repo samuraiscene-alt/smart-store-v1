@@ -1,4 +1,4 @@
-const CACHE='smart-store-v1-20260905-persistent-alerts-1';
+const CACHE='smart-store-v1-20260906-reservation-change-alerts-1';
 const ASSETS=['./','index.html','admin.html','styles.css','app.js?v=20260904-4','admin.js','admin-approval.js?v=20260905-1','push-client.js?v=20260905-1','customer-reservation.js?v=20260905-1','cloud-config.js','manifest.json','admin-manifest.json'];
 
 self.addEventListener('install',event=>{
@@ -32,6 +32,7 @@ self.addEventListener('fetch',event=>{
 
 const PUSH_OPEN_DB='smart-store-push-open-v1';
 const PUSH_OPEN_STORE='kv';
+
 function openPushOpenDb(){
   return new Promise((resolve,reject)=>{
     const req=indexedDB.open(PUSH_OPEN_DB,1);
@@ -45,7 +46,7 @@ function openPushOpenDb(){
   });
 }
 
-async function savePendingCustomerReservation(reservationId){
+async function savePendingCustomerReservation(reservationId,eventType='',eventKey=''){
   if(!reservationId)return;
   try{
     const db=await openPushOpenDb();
@@ -54,6 +55,8 @@ async function savePendingCustomerReservation(reservationId){
       tx.objectStore(PUSH_OPEN_STORE).put({
         key:'customerReservation',
         reservation_id:reservationId,
+        event_type:eventType||'',
+        event_key:eventKey||'',
         saved_at:Date.now()
       });
       tx.oncomplete=()=>resolve();
@@ -66,34 +69,48 @@ async function savePendingCustomerReservation(reservationId){
   }
 }
 
-async function notifyOpenCustomerClients(reservationId){
+async function notifyOpenCustomerClients(reservationId,eventType='',eventKey=''){
   if(!reservationId)return;
   const wins=await clients.matchAll({type:'window',includeUncontrolled:true});
   for(const win of wins){
     try{
       const current=new URL(win.url);
       if(current.pathname.endsWith('/index.html')||current.pathname.endsWith('/')){
-        win.postMessage({type:'smart-store-open-reservation',reservation_id:reservationId});
+        win.postMessage({
+          type:'smart-store-open-reservation',
+          reservation_id:reservationId,
+          event_type:eventType||'',
+          event_key:eventKey||''
+        });
       }
     }catch{}
   }
 }
 
 self.addEventListener('push',event=>{
-  let payload={title:'Smart Store',body:'새 알림이 있습니다.',url:'index.html',tag:'smart-store'};
+  let payload={
+    title:'Smart Store',
+    body:'새 알림이 있습니다.',
+    url:'index.html',
+    tag:'smart-store'
+  };
+
   try{
     if(event.data)payload={...payload,...event.data.json()};
   }catch{}
 
   const target=new URL(payload.url||'index.html',self.registration.scope);
   const reservationId=payload.reservation_id||null;
+  const eventType=payload.event_type||'';
+  const eventKey=payload.event_key||payload.tag||'';
   const isCustomer=target.pathname.endsWith('/index.html');
 
   const tasks=[];
+
   if(isCustomer&&reservationId){
-    // 손님이 시스템 배너를 누르지 않아도 결과를 잃지 않도록 도착 즉시 저장한다.
-    tasks.push(savePendingCustomerReservation(reservationId));
-    tasks.push(notifyOpenCustomerClients(reservationId));
+    // 손님이 시스템 배너를 누르지 않아도 도착 즉시 저장한다.
+    tasks.push(savePendingCustomerReservation(reservationId,eventType,eventKey));
+    tasks.push(notifyOpenCustomerClients(reservationId,eventType,eventKey));
   }
 
   tasks.push(self.registration.showNotification(payload.title||'Smart Store',{
@@ -101,7 +118,12 @@ self.addEventListener('push',event=>{
     tag:payload.tag||'smart-store',
     renotify:true,
     requireInteraction:true,
-    data:{url:target.href,reservation_id:reservationId}
+    data:{
+      url:target.href,
+      reservation_id:reservationId,
+      event_type:eventType,
+      event_key:eventKey
+    }
   }));
 
   event.waitUntil(Promise.all(tasks));
@@ -109,7 +131,10 @@ self.addEventListener('push',event=>{
 
 self.addEventListener('notificationclick',event=>{
   event.notification.close();
+
   const reservationId=event.notification.data?.reservation_id||null;
+  const eventType=event.notification.data?.event_type||'';
+  const eventKey=event.notification.data?.event_key||'';
   const raw=event.notification.data?.url||new URL('index.html',self.registration.scope).href;
   const target=new URL(raw,self.registration.scope);
   const isCustomer=target.pathname.endsWith('/index.html');
@@ -117,24 +142,38 @@ self.addEventListener('notificationclick',event=>{
   if(isCustomer&&reservationId){
     target.searchParams.set('reservation_id',reservationId);
     target.searchParams.set('push_open',String(Date.now()));
+    if(eventType)target.searchParams.set('reservation_event',eventType);
+    if(eventKey)target.searchParams.set('reservation_event_key',eventKey);
   }
 
   event.waitUntil((async()=>{
-    if(isCustomer&&reservationId)await savePendingCustomerReservation(reservationId);
+    if(isCustomer&&reservationId){
+      await savePendingCustomerReservation(reservationId,eventType,eventKey);
+    }
 
     const wins=await clients.matchAll({type:'window',includeUncontrolled:true});
+
     for(const win of wins){
       try{
         const current=new URL(win.url);
+
         if(current.origin===target.origin&&current.pathname===target.pathname){
           let active=win;
+
           if('navigate' in win){
             const navigated=await win.navigate(target.href);
             if(navigated)active=navigated;
           }
+
           await active.focus();
+
           if(isCustomer&&reservationId){
-            active.postMessage({type:'smart-store-open-reservation',reservation_id:reservationId});
+            active.postMessage({
+              type:'smart-store-open-reservation',
+              reservation_id:reservationId,
+              event_type:eventType,
+              event_key:eventKey
+            });
           }
           return;
         }
