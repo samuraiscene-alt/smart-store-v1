@@ -324,9 +324,10 @@ await loadAdminData();
     }
   });
 })();
-/* 예약 날짜/시간 수정 + Google Calendar 자동 동기화 */
+/* 예약 날짜/시간 수정 + Google Calendar 자동 /* 예약 상세 수정 + Google Calendar 자동 동기화 */
 (() => {
   let editingReservationId = null;
+  let originalReservation = null;
 
   const style = document.createElement('style');
   style.textContent = `
@@ -336,9 +337,11 @@ await loadAdminData();
       gap:7px;
       align-items:stretch;
     }
+
     .reservationScheduleEdit{
       white-space:nowrap;
     }
+
     #reservationScheduleModal .reservationEditSummary{
       margin:12px 0 16px;
       padding:14px;
@@ -347,14 +350,51 @@ await loadAdminData();
       color:#6d4f4c;
       line-height:1.55;
     }
+
+    #reservationServiceInfo{
+      display:block;
+      margin-top:7px;
+      color:#8e817b;
+      font-size:13px;
+    }
+
+    #reservationStaffField.hidden{
+      display:none;
+    }
   `;
   document.head.appendChild(style);
 
   function safeText(v=''){
     return String(v).replace(/[&<>"']/g,m=>({
-      '&':'&amp;','<':'&lt;','>':'&gt;',
-      '"':'&quot;',"'":'&#39;'
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
     }[m]));
+  }
+
+  function activeServices(currentId){
+    return data.services.filter(
+      s => s.active !== false || s.id === currentId
+    );
+  }
+
+  function serviceById(id){
+    return data.services.find(s => s.id === id);
+  }
+
+  function staffById(id){
+    return data.staff.find(s => s.id === id);
+  }
+
+  function compatibleStaff(serviceId){
+    return data.staff.filter(
+      s =>
+        s.active !== false &&
+        Array.isArray(s.services) &&
+        s.services.includes(serviceId)
+    );
   }
 
   function ensureReservationEditModal(){
@@ -369,80 +409,356 @@ await loadAdminData();
         <div class="sheetTop">
           <div>
             <p class="eyebrow">BOOKING</p>
-            <h3>예약 일정 수정</h3>
+            <h3>예약 상세 수정</h3>
           </div>
           <button id="reservationScheduleClose" class="iconBtn">✕</button>
         </div>
 
-        <div id="reservationEditSummary" class="reservationEditSummary"></div>
+        <div
+          id="reservationEditSummary"
+          class="reservationEditSummary">
+        </div>
+
+        <label class="field">
+          <span>서비스</span>
+          <select id="reservationEditService"></select>
+          <small id="reservationServiceInfo"></small>
+        </label>
+
+        <label
+          id="reservationStaffField"
+          class="field">
+          <span id="reservationStaffLabel">담당자</span>
+          <select id="reservationEditStaff"></select>
+        </label>
 
         <label class="field">
           <span>예약 날짜</span>
-          <input id="reservationEditDate" type="date">
+          <input
+            id="reservationEditDate"
+            type="date">
         </label>
 
         <label class="field">
           <span>예약 시간</span>
-          <input id="reservationEditTime" type="time">
+          <input
+            id="reservationEditTime"
+            type="time">
+        </label>
+
+        <label class="field">
+          <span>관리자 메모</span>
+          <textarea
+            id="reservationEditNote"
+            rows="3"
+            placeholder="예약 관련 메모"></textarea>
         </label>
 
         <div class="confirmActions">
-          <button id="reservationScheduleCancel" class="secondary">취소</button>
-          <button id="reservationScheduleSave" class="primary">저장</button>
+          <button
+            id="reservationScheduleCancel"
+            class="secondary">
+            취소
+          </button>
+
+          <button
+            id="reservationScheduleSave"
+            class="primary">
+            저장
+          </button>
         </div>
       </section>
     `;
 
     document.body.appendChild(wrap);
 
-    document.getElementById('reservationScheduleClose').onclick=closeReservationEdit;
-    document.getElementById('reservationScheduleCancel').onclick=closeReservationEdit;
-    document.getElementById('reservationScheduleSave').onclick=saveReservationEdit;
+    document.getElementById(
+      'reservationScheduleClose'
+    ).onclick=closeReservationEdit;
+
+    document.getElementById(
+      'reservationScheduleCancel'
+    ).onclick=closeReservationEdit;
+
+    document.getElementById(
+      'reservationScheduleSave'
+    ).onclick=saveReservationEdit;
+
+    document.getElementById(
+      'reservationEditService'
+    ).onchange=()=>{
+      const serviceId=
+        document.getElementById(
+          'reservationEditService'
+        ).value;
+
+      refreshServiceInfo();
+      refreshStaffOptions(serviceId);
+    };
   }
 
   function closeReservationEdit(){
-    document.getElementById('reservationScheduleModal')?.classList.add('hidden');
+    document.getElementById(
+      'reservationScheduleModal'
+    )?.classList.add('hidden');
+
     editingReservationId=null;
+    originalReservation=null;
   }
 
-  function openReservationEdit(id){
+  function refreshServiceInfo(){
+    const serviceId=
+      document.getElementById(
+        'reservationEditService'
+      )?.value;
+
+    const svc=serviceById(serviceId);
+    const info=document.getElementById(
+      'reservationServiceInfo'
+    );
+
+    if(!svc || !info) return;
+
+    info.textContent=
+      `${Number(svc.price||0).toLocaleString('ko-KR')}원 · ` +
+      `${Number(svc.duration||30)}분`;
+  }
+
+  function refreshStaffOptions(serviceId,preferredId=null){
+    const field=document.getElementById(
+      'reservationStaffField'
+    );
+
+    const select=document.getElementById(
+      'reservationEditStaff'
+    );
+
+    if(!field || !select) return;
+
+    if(data.store.staffEnabled === false){
+      field.classList.add('hidden');
+      select.innerHTML='';
+      return;
+    }
+
+    field.classList.remove('hidden');
+
+    document.getElementById(
+      'reservationStaffLabel'
+    ).textContent=
+      data.store.staffLabel || '담당자';
+
+    let staffList=compatibleStaff(serviceId);
+
+    /*
+      기존 예약의 서비스와 동일한 경우,
+      현재 담당자가 비활성 상태여도 표시해서
+      기존 예약을 깨뜨리지 않는다.
+    */
+    if(
+      originalReservation &&
+      serviceId === originalReservation.serviceId &&
+      originalReservation.staffId &&
+      !staffList.some(
+        s => s.id === originalReservation.staffId
+      )
+    ){
+      const current=
+        staffById(originalReservation.staffId);
+
+      if(current){
+        staffList=[
+          current,
+          ...staffList.filter(
+            s => s.id !== current.id
+          )
+        ];
+      }
+    }
+
+    if(!staffList.length){
+      select.innerHTML=
+        `<option value="">가능한 담당자 없음</option>`;
+      return;
+    }
+
+    select.innerHTML=
+      staffList.map(s=>
+        `<option value="${s.id}">
+          ${safeText(s.name)}
+        </option>`
+      ).join('');
+
+    if(
+      preferredId &&
+      staffList.some(s=>s.id===preferredId)
+    ){
+      select.value=preferredId;
+    }else{
+      select.value=staffList[0].id;
+    }
+  }
+
+  async function openReservationEdit(id){
     ensureReservationEditModal();
 
-    const r=data.reservations.find(x=>x.id===id);
+    const r=data.reservations.find(
+      x => x.id === id
+    );
+
     if(!r) return;
 
     editingReservationId=id;
+    originalReservation=r;
 
-    document.getElementById('reservationEditDate').value=r.date;
-    document.getElementById('reservationEditTime').value=r.time;
+    const services=
+      activeServices(r.serviceId);
 
-    document.getElementById('reservationEditSummary').innerHTML=`
+    const serviceSelect=
+      document.getElementById(
+        'reservationEditService'
+      );
+
+    serviceSelect.innerHTML=
+      services.map(s=>
+        `<option value="${s.id}">
+          ${safeText(s.name)}
+        </option>`
+      ).join('');
+
+    if(
+      services.some(
+        s => s.id === r.serviceId
+      )
+    ){
+      serviceSelect.value=r.serviceId;
+    }
+
+    document.getElementById(
+      'reservationEditDate'
+    ).value=r.date;
+
+    document.getElementById(
+      'reservationEditTime'
+    ).value=r.time;
+
+    document.getElementById(
+      'reservationEditSummary'
+    ).innerHTML=`
       <b>${safeText(r.customerName||'고객')}</b><br>
-      ${safeText(r.serviceName||'')} · ${safeText(r.staffName||'담당없음')}
+      ${safeText(r.customerPhone||'')}
     `;
 
-    document.getElementById('reservationScheduleModal').classList.remove('hidden');
+    const {data:dbReservation,error}=
+      await sb
+        .from('reservations')
+        .select('note')
+        .eq('id',id)
+        .maybeSingle();
+
+    document.getElementById(
+      'reservationEditNote'
+    ).value=
+      error
+        ? ''
+        : (dbReservation?.note || '');
+
+    refreshServiceInfo();
+
+    refreshStaffOptions(
+      serviceSelect.value,
+      r.staffId
+    );
+
+    document.getElementById(
+      'reservationScheduleModal'
+    ).classList.remove('hidden');
   }
 
   async function saveReservationEdit(){
-    if(!editingReservationId) return;
+    if(
+      !editingReservationId ||
+      !originalReservation
+    ) return;
 
-    const date=document.getElementById('reservationEditDate').value;
-    const time=document.getElementById('reservationEditTime').value;
+    const serviceId=
+      document.getElementById(
+        'reservationEditService'
+      ).value;
 
-    if(!date||!time){
+    const date=
+      document.getElementById(
+        'reservationEditDate'
+      ).value;
+
+    const time=
+      document.getElementById(
+        'reservationEditTime'
+      ).value;
+
+    const note=
+      document.getElementById(
+        'reservationEditNote'
+      ).value.trim();
+
+    const service=
+      serviceById(serviceId);
+
+    if(!service){
+      alert('서비스를 선택해주세요.');
+      return;
+    }
+
+    if(!date || !time){
       alert('날짜와 시간을 선택해주세요.');
       return;
     }
 
-    const button=document.getElementById('reservationScheduleSave');
+    const patch={
+      service_id:service.id,
+      service_name:service.name,
+      price:Number(service.price||0),
+      duration_minutes:Number(
+        service.duration||30
+      ),
+      reservation_date:date,
+      reservation_time:time,
+      note:note || null
+    };
+
+    if(data.store.staffEnabled !== false){
+      const staffId=
+        document.getElementById(
+          'reservationEditStaff'
+        ).value;
+
+      const staff=
+        staffById(staffId);
+
+      if(!staff){
+        alert(
+          `선택한 서비스가 가능한 ${
+            data.store.staffLabel || '담당자'
+          }를 선택해주세요.`
+        );
+        return;
+      }
+
+      patch.staff_id=staff.id;
+      patch.staff_name=staff.name;
+      patch.staff_any=false;
+    }
+
+    const button=
+      document.getElementById(
+        'reservationScheduleSave'
+      );
+
     button.disabled=true;
 
-    const {error}=await sb.from('reservations')
-      .update({
-        reservation_date:date,
-        reservation_time:time
-      })
+    const {error}=await sb
+      .from('reservations')
+      .update(patch)
       .eq('id',editingReservationId);
 
     button.disabled=false;
@@ -453,67 +769,118 @@ await loadAdminData();
     }
 
     closeReservationEdit();
+
     await loadAdminData();
 
-    if(typeof showAdminMessage==='function'){
-      showAdminMessage('예약 일정 변경 완료 ✓');
+    if(
+      typeof showAdminMessage === 'function'
+    ){
+      showAdminMessage(
+        '예약 상세 변경 완료 ✓'
+      );
     }
   }
 
   function enhanceReservationEditButtons(){
     ensureReservationEditModal();
 
-    document.querySelectorAll('#reservationList .reservationItem').forEach(row=>{
-      const select=row.querySelector('[data-res-status]');
+    document.querySelectorAll(
+      '#reservationList .reservationItem'
+    ).forEach(row=>{
+
+      const select=
+        row.querySelector(
+          '[data-res-status]'
+        );
+
       if(!select) return;
 
-      const id=select.dataset.resStatus;
-      if(row.querySelector(`[data-edit-reservation="${id}"]`)) return;
+      const id=
+        select.dataset.resStatus;
 
-      let actions=row.querySelector('.reservationEditActions');
+      if(
+        row.querySelector(
+          `[data-edit-reservation="${id}"]`
+        )
+      ) return;
+
+      let actions=
+        row.querySelector(
+          '.reservationEditActions'
+        );
 
       if(!actions){
-        actions=document.createElement('div');
-        actions.className='reservationEditActions';
+        actions=
+          document.createElement('div');
 
-        select.parentNode.insertBefore(actions,select);
+        actions.className=
+          'reservationEditActions';
+
+        select.parentNode.insertBefore(
+          actions,
+          select
+        );
+
         actions.appendChild(select);
       }
 
-      const button=document.createElement('button');
+      const button=
+        document.createElement('button');
+
       button.type='button';
-      button.className='secondary mini reservationScheduleEdit';
+      button.className=
+        'secondary mini reservationScheduleEdit';
+
       button.dataset.editReservation=id;
-      button.textContent='일정수정';
+      button.textContent='예약수정';
 
-      button.onclick=()=>openReservationEdit(id);
+      button.onclick=
+        ()=>openReservationEdit(id);
 
-      actions.insertBefore(button,select);
+      actions.insertBefore(
+        button,
+        select
+      );
     });
   }
 
   try{
-    const previousLoadAdminData=loadAdminData;
+    const previousLoadAdminData=
+      loadAdminData;
 
-    loadAdminData=async function(){
-      await previousLoadAdminData();
-      setTimeout(enhanceReservationEditButtons,0);
-    };
+    loadAdminData=
+      async function(){
+
+        await previousLoadAdminData();
+
+        setTimeout(
+          enhanceReservationEditButtons,
+          0
+        );
+      };
+
   }catch{}
 
   let tries=0;
+
   const timer=setInterval(()=>{
+
     tries++;
 
     if(
-      typeof data!=='undefined' &&
+      typeof data !== 'undefined' &&
       Array.isArray(data.reservations) &&
-      document.getElementById('reservationList')
+      document.getElementById(
+        'reservationList'
+      )
     ){
       enhanceReservationEditButtons();
       clearInterval(timer);
     }
 
-    if(tries>60) clearInterval(timer);
+    if(tries>60){
+      clearInterval(timer);
+    }
+
   },250);
 })();
