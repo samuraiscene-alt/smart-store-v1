@@ -9,7 +9,7 @@
   const PUSH_STORE_SLUG = PUSH_CONFIG.storeSlug;
   const pushSb = window.supabase.createClient(PUSH_CONFIG.supabaseUrl, PUSH_CONFIG.supabaseKey);
   const FUNCTION_URL = `${PUSH_CONFIG.supabaseUrl}/functions/v1/send-push`;
-  const SERVICE_WORKER_URL = 'service-worker.js?v=20260904-3';
+  const SERVICE_WORKER_URL = 'service-worker.js?v=20260905-1';
 
   async function ensureServiceWorker(){
     if(!('serviceWorker' in navigator))throw new Error('서비스워커를 지원하지 않습니다.');
@@ -237,9 +237,10 @@
       const {data:{session}}=await pushSb.auth.getSession();
       if(!session)return;
 
-      const reg=await ensureServiceWorker();
-      const sub=await reg.pushManager.getSubscription();
-      if(sub)await subscribeAdmin();
+      await ensureServiceWorker();
+      // 권한이 이미 허용돼 있으면 현재 PWA의 구독을 매번 서버와 다시 맞춘다.
+      // 서버 등록 함수가 같은 관리자 계정의 오래된 endpoint는 자동 비활성화한다.
+      await subscribeAdmin();
     }catch{}
   }
 
@@ -261,4 +262,9 @@
   }else{
     start();
   }
+
+  window.addEventListener('pageshow',()=>setTimeout(syncExistingAdmin,300));
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible')setTimeout(syncExistingAdmin,300);
+  });
 })();
