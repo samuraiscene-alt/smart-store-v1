@@ -209,13 +209,26 @@
 
     document.querySelectorAll('[data-res-status]').forEach(sel=>{
       sel.onchange=async()=>{
-        const wasPending=r.status==='예약대기';
-        const {error}=await sb.from('reservations').update({status:sel.value}).eq('id',sel.dataset.resStatus);
-        if(error){alert(error.message);return}
-        if(wasPending&&['예약확정','예약거절'].includes(sel.value)){
-          await window.SmartStorePush?.sendReservationStatus(r.id);
-        }
-        await loadAdminData();
+        const reservationId=sel.dataset.resStatus;
+const currentReservation=data.reservations.find(r=>r.id===reservationId);
+const wasPending=currentReservation?.status==='예약대기';
+const nextStatus=sel.value;
+
+const {error}=await sb.from('reservations')
+  .update({status:nextStatus})
+  .eq('id',reservationId);
+
+if(error){
+  alert(error.message);
+  await loadAdminData();
+  return;
+}
+
+if(wasPending&&['예약확정','예약거절'].includes(nextStatus)){
+  await window.SmartStorePush?.sendReservationStatus(reservationId);
+}
+
+await loadAdminData();
       };
     });
   };
