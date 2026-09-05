@@ -1,28 +1,13 @@
 {
-  "name": "QR 자동 출석부",
-  "short_name": "출석 체크",
-  "description": "행사별 QR 출석과 모바일 명단 관리를 위한 PWA",
-  "id": "./",
-  "start_url": "./",
+  "id": "index.html",
+  "name": "Smart Store",
+  "short_name": "Smart Store",
+  "description": "매장 정보, 예약 및 예약 결과 알림을 제공하는 Smart Store 고객용 PWA",
+  "start_url": "index.html",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone"],
-  "background_color": "#f5f9fa",
-  "theme_color": "#f7fbfb",
+  "background_color": "#f8f4f1",
+  "theme_color": "#f8f4f1",
   "lang": "ko-KR",
-  "prefer_related_applications": false,
-  "icons": [
-    {
-      "src": "icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+  "prefer_related_applications": false
 }
