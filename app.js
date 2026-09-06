@@ -198,7 +198,8 @@ $('#finalReview').onclick=()=>{
   if(!name||phone.replace(/\D/g,'').length<9){showConfirm({title:'예약자 정보를 확인해주세요',body:'<p>이름과 올바른 전화번호를 입력해주세요.</p>',ok:'확인',single:true});return}
   const svc=data.services.find(s=>s.id===booking.serviceId);const st=booking.staffId==='any'?'상관없음':(data.staff.find(s=>s.id===booking.staffId)?.name||'-');
   const manual=data.store.reservationApprovalMode==='manual';
-  showConfirm({title:'예약 내용을 확인해주세요',body:`<div class="reviewList"><div><span>서비스</span><b>${esc(svc.name)}</b></div><div><span>${esc(data.store.staffLabel)}</span><b>${esc(st)}</b></div><div><span>날짜</span><b>${formatDate(booking.date)}</b></div><div><span>시간</span><b>${booking.time}</b></div><div><span>예약자</span><b>${esc(name)}</b></div><div><span>예상금액</span><b>${money(svc.price)}</b></div></div><p>${manual?'이 내용으로 예약을 신청하시겠습니까?':'이 내용으로 예약하시겠습니까?'}</p>`,ok:manual?'예약신청':'예약확정',cancel:'수정하기',onOk:()=>createReservation(name,phone,svc)});
+  const depositNotice=data.store.depositNoticeEnabled&&String(data.store.depositNoticeText||'').trim()?`<div class="hintBox" style="margin-top:12px"><b>예약금 안내</b><br>${esc(data.store.depositNoticeText)}</div>`:'';
+  showConfirm({title:'예약 내용을 확인해주세요',body:`<div class="reviewList"><div><span>서비스</span><b>${esc(svc.name)}</b></div><div><span>${esc(data.store.staffLabel)}</span><b>${esc(st)}</b></div><div><span>날짜</span><b>${formatDate(booking.date)}</b></div><div><span>시간</span><b>${booking.time}</b></div><div><span>예약자</span><b>${esc(name)}</b></div><div><span>예상금액</span><b>${money(svc.price)}</b></div></div>${depositNotice}<p>${manual?'이 내용으로 예약을 신청하시겠습니까?':'이 내용으로 예약하시겠습니까?'}</p>`,ok:manual?'예약신청':'예약확정',cancel:'수정하기',onOk:()=>createReservation(name,phone,svc)});
 };
 async function createReservation(name,phone,svc){
   if(!cloudReady){showConfirm({title:'인터넷 연결을 확인해주세요',body:'<p>예약은 온라인 상태에서만 확정할 수 있습니다.</p>',ok:'확인',single:true});return}
