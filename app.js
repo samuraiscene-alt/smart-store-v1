@@ -229,6 +229,7 @@ async function createReservation(name,phone,svc){
     window.SmartStorePush?.sendNewReservation(reservationId);
   }
   const pushBox=reservationId?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eadfda">
+  const completionDepositNotice=data.store.depositNoticeEnabled&&String(data.store.depositNoticeText||'').trim()?`<div class="hintBox" style="margin-top:12px"><b>예약금 안내</b><br>${esc(data.store.depositNoticeText)}</div>`:'';
     <button id="bookingPushEnable" class="secondary full" type="button" style="margin-top:0">🔔 예약 알림 받기</button>
     <small id="bookingPushHelp" style="display:block;margin-top:8px;color:#8e817b;line-height:1.45">예약 승인·거절 결과를 아이폰 알림으로 받아보세요.</small>
   </div>`:'';
