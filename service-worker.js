@@ -1,4 +1,4 @@
-const CACHE='smart-store-v1-20260906-reservation-change-alerts-1';
+const CACHE='smart-store-v1-20260906-reservation-diff-alerts-2';
 const ASSETS=['./','index.html','admin.html','styles.css','app.js?v=20260904-4','admin.js','admin-approval.js?v=20260905-1','push-client.js?v=20260905-1','customer-reservation.js?v=20260905-1','cloud-config.js','manifest.json','admin-manifest.json'];
 
 self.addEventListener('install',event=>{
@@ -46,7 +46,7 @@ function openPushOpenDb(){
   });
 }
 
-async function savePendingCustomerReservation(reservationId,eventType='',eventKey=''){
+async function savePendingCustomerReservation(reservationId,eventType='',eventKey='',changes={}){
   if(!reservationId)return;
   try{
     const db=await openPushOpenDb();
@@ -57,6 +57,7 @@ async function savePendingCustomerReservation(reservationId,eventType='',eventKe
         reservation_id:reservationId,
         event_type:eventType||'',
         event_key:eventKey||'',
+        changes:changes||{},
         saved_at:Date.now()
       });
       tx.oncomplete=()=>resolve();
@@ -69,7 +70,7 @@ async function savePendingCustomerReservation(reservationId,eventType='',eventKe
   }
 }
 
-async function notifyOpenCustomerClients(reservationId,eventType='',eventKey=''){
+async function notifyOpenCustomerClients(reservationId,eventType='',eventKey='',changes={}){
   if(!reservationId)return;
   const wins=await clients.matchAll({type:'window',includeUncontrolled:true});
   for(const win of wins){
@@ -80,7 +81,8 @@ async function notifyOpenCustomerClients(reservationId,eventType='',eventKey='')
           type:'smart-store-open-reservation',
           reservation_id:reservationId,
           event_type:eventType||'',
-          event_key:eventKey||''
+          event_key:eventKey||'',
+          changes:changes||{}
         });
       }
     }catch{}
@@ -103,14 +105,15 @@ self.addEventListener('push',event=>{
   const reservationId=payload.reservation_id||null;
   const eventType=payload.event_type||'';
   const eventKey=payload.event_key||payload.tag||'';
+  const changes=payload.changes||{};
   const isCustomer=target.pathname.endsWith('/index.html');
 
   const tasks=[];
 
   if(isCustomer&&reservationId){
     // 손님이 시스템 배너를 누르지 않아도 도착 즉시 저장한다.
-    tasks.push(savePendingCustomerReservation(reservationId,eventType,eventKey));
-    tasks.push(notifyOpenCustomerClients(reservationId,eventType,eventKey));
+    tasks.push(savePendingCustomerReservation(reservationId,eventType,eventKey,changes));
+    tasks.push(notifyOpenCustomerClients(reservationId,eventType,eventKey,changes));
   }
 
   tasks.push(self.registration.showNotification(payload.title||'Smart Store',{
@@ -122,7 +125,8 @@ self.addEventListener('push',event=>{
       url:target.href,
       reservation_id:reservationId,
       event_type:eventType,
-      event_key:eventKey
+      event_key:eventKey,
+      changes
     }
   }));
 
@@ -135,6 +139,7 @@ self.addEventListener('notificationclick',event=>{
   const reservationId=event.notification.data?.reservation_id||null;
   const eventType=event.notification.data?.event_type||'';
   const eventKey=event.notification.data?.event_key||'';
+  const changes=event.notification.data?.changes||{};
   const raw=event.notification.data?.url||new URL('index.html',self.registration.scope).href;
   const target=new URL(raw,self.registration.scope);
   const isCustomer=target.pathname.endsWith('/index.html');
@@ -148,7 +153,7 @@ self.addEventListener('notificationclick',event=>{
 
   event.waitUntil((async()=>{
     if(isCustomer&&reservationId){
-      await savePendingCustomerReservation(reservationId,eventType,eventKey);
+      await savePendingCustomerReservation(reservationId,eventType,eventKey,changes);
     }
 
     const wins=await clients.matchAll({type:'window',includeUncontrolled:true});
@@ -172,7 +177,8 @@ self.addEventListener('notificationclick',event=>{
               type:'smart-store-open-reservation',
               reservation_id:reservationId,
               event_type:eventType,
-              event_key:eventKey
+              event_key:eventKey,
+              changes
             });
           }
           return;

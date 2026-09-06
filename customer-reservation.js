@@ -99,6 +99,12 @@
       #customerPersistentReservationAlert .persistentReservationNote{margin:12px 0 0;color:#8e817b;font-size:13px;line-height:1.5}
       #customerPersistentReservationAlert .persistentReservationActions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:18px}
       #customerPersistentReservationAlert .persistentReservationActions.two{grid-template-columns:1fr 1.15fr}
+      #customerPersistentReservationAlert .reviewList .changedRow{background:#fbefec;border-radius:12px;padding:10px 12px;margin:4px -8px}
+      #customerPersistentReservationAlert .changeValue{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+      #customerPersistentReservationAlert .changeOld{color:#a79690;text-decoration:line-through;font-weight:500}
+      #customerPersistentReservationAlert .changeArrow{color:#b77e76;font-weight:700}
+      #customerPersistentReservationAlert .changeNew{color:#6d4f4c;font-weight:800}
+      #customerPersistentReservationAlert .changeBadge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#ead4ce;color:#7b5550;font-size:11px;font-weight:800;white-space:nowrap}
     `;
 
     document.head.appendChild(style);
@@ -130,18 +136,42 @@
     });
   }
 
-  function detailBody(r,rejected=false,changed=false){
+  function changeRow(label,current,change,key=''){
+    if(!change){
+      return `<div><span>${escHtml(label)}</span><b>${key==='price'?won(current):escHtml(current??'-')}</b></div>`;
+    }
+
+    const before=key==='price'?won(change.before):escHtml(change.before??'-');
+    const after=key==='price'?won(change.after):escHtml(change.after??'-');
+
+    return `
+      <div class="changedRow">
+        <span>${escHtml(label)}</span>
+        <b class="changeValue">
+          <span class="changeOld">${before}</span>
+          <span class="changeArrow">→</span>
+          <span class="changeNew">${after}</span>
+          <span class="changeBadge">변경됨</span>
+        </b>
+      </div>
+    `;
+  }
+
+  function detailBody(r,rejected=false,changed=false,changes={}){
     return `
       <div class="reviewList">
         <div><span>예약자</span><b>${escHtml(r.customer_name||'고객')}</b></div>
-        <div><span>날짜</span><b>${escHtml(koreanDate(r.reservation_date))}</b></div>
-        <div><span>시간</span><b>${escHtml(String(r.reservation_time||'-').slice(0,5))}</b></div>
-        <div><span>서비스</span><b>${escHtml(r.service_name||'-')}</b></div>
-        <div><span>담당자</span><b>${escHtml(r.staff_name||'담당없음')}</b></div>
-        <div><span>예상금액</span><b>${won(r.price)}</b></div>
+        ${changeRow('날짜',koreanDate(r.reservation_date),changes.date?{
+          before:koreanDate(changes.date.before),
+          after:koreanDate(changes.date.after)
+        }:null)}
+        ${changeRow('시간',String(r.reservation_time||'-').slice(0,5),changes.time||null)}
+        ${changeRow('서비스',r.service_name||'-',changes.service||null)}
+        ${changeRow('담당자',r.staff_name||'담당없음',changes.staff||null)}
+        ${changeRow('예상금액',r.price,changes.price||null,'price')}
       </div>
       ${rejected?'<p style="margin-top:14px">다른 시간으로 다시 예약해주세요.</p>':''}
-      ${changed?'<p style="margin-top:14px">변경된 예약 내용을 확인해주세요.</p>':''}
+      ${changed?'<p style="margin-top:14px">색으로 강조된 항목이 변경된 내용입니다.</p>':''}
     `;
   }
 
@@ -150,7 +180,7 @@
     visibleReservation=null;
   }
 
-  function showPersistentReservation(r,eventType='',eventKey=''){
+  function showPersistentReservation(r,eventType='',eventKey='',changes={}){
     const changed=eventType==='changed'&&r?.status==='예약확정';
     const validNormal=r&&['예약확정','예약거절'].includes(r.status);
 
@@ -176,7 +206,7 @@
       icon.textContent=rejected?'!':'✓';
     }
 
-    body.innerHTML=detailBody(r,rejected,changed);
+    body.innerHTML=detailBody(r,rejected,changed,changes);
 
     if(rejected&&!changed){
       actions.classList.add('two');
@@ -211,7 +241,7 @@
     wrap.classList.remove('hidden');
   }
 
-  async function openReservation(reservationId,eventType='',eventKey=''){
+  async function openReservation(reservationId,eventType='',eventKey='',changes={}){
     if(!reservationId)return;
 
     const checkKey=`${reservationId}:${eventType}:${eventKey}`;
@@ -229,7 +259,7 @@
 
       if(eventType==='changed'){
         if(r.status==='예약확정'&&!isAcked(r,eventType,eventKey)){
-          showPersistentReservation(r,eventType,eventKey);
+          showPersistentReservation(r,eventType,eventKey,changes);
         }
       }else if(['예약확정','예약거절'].includes(r.status)&&!isAcked(r,eventType,eventKey)){
         showPersistentReservation(r,eventType,eventKey);
@@ -254,14 +284,17 @@
     let id=params.get('reservation_id')||'';
     let eventType=params.get('reservation_event')||'';
     let eventKey=params.get('reservation_event_key')||'';
+    let changes={};
 
-    if(!id){
-      const pending=await consumePendingReservation();
+    const pending=await consumePendingReservation();
 
-      if(pending?.reservation_id){
-        id=pending.reservation_id;
-        eventType=pending.event_type||'';
-        eventKey=pending.event_key||'';
+    if(pending?.reservation_id){
+      if(!id)id=pending.reservation_id;
+
+      if(id===pending.reservation_id){
+        eventType=eventType||pending.event_type||'';
+        eventKey=eventKey||pending.event_key||'';
+        changes=pending.changes||{};
       }
     }
 
@@ -271,7 +304,7 @@
       }catch{}
     }
 
-    if(id)openReservation(id,eventType,eventKey);
+    if(id)openReservation(id,eventType,eventKey,changes);
   }
 
   const scheduleRead=(delay=100)=>setTimeout(readPendingOpen,delay);
@@ -296,7 +329,8 @@
       openReservation(
         event.data.reservation_id,
         event.data.event_type||'',
-        event.data.event_key||''
+        event.data.event_key||'',
+        event.data.changes||{}
       );
     }
   });
