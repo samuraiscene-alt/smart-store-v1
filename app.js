@@ -25,7 +25,13 @@ function mapPayload(payload){
     store:{
       id:st.id,name:st.name||"S'nail",tagline:st.tagline||'',phone:st.phone||'',address:st.address||'',map:st.map_url||'',
       staffLabel:st.staff_label||'담당자',notice:st.notice||'',introMode:st.intro_mode||'none',introMedia:st.intro_media_url||'',
-      staffEnabled:st.staff_enabled!==false,reservationApprovalMode:st.reservation_approval_mode||'auto'
+      staffEnabled:st.staff_enabled!==false,reservationApprovalMode:st.reservation_approval_mode||'auto',
+customerCancelEnabled:st.customer_cancel_enabled===true,
+customerCancelDeadlineHours:Number(st.customer_cancel_deadline_hours||24),
+depositNoticeEnabled:st.deposit_notice_enabled===true,
+depositNoticeText:st.deposit_notice_text||'',
+lateCancelNoticeEnabled:st.late_cancel_notice_enabled===true,
+lateCancelNoticeText:st.late_cancel_notice_text||''
     },
     schedule:{
       open:timeHHMM(st.opening_time||'10:00'),close:timeHHMM(st.closing_time||'20:00'),slotMinutes:Number(st.slot_minutes||30),
