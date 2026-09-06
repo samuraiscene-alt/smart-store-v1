@@ -24,9 +24,15 @@
     return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${DAYS[d.getDay()]}요일`;
   }
 
+  function reminderHoursFromEvent(eventType=''){
+    const match=String(eventType).match(/^reminder_(\d+)h$/);
+    return match?Number(match[1]):0;
+  }
+
   function ackKey(r,eventType='',eventKey=''){
-    if(eventType==='changed'){
-      return `${ACK_PREFIX}${eventKey||`${r.id}:changed:${r.reservation_date}:${r.reservation_time}:${r.service_id||''}:${r.staff_name||''}`}`;
+    const isReminder=reminderHoursFromEvent(eventType)>0;
+    if(eventType==='changed'||isReminder){
+      return `${ACK_PREFIX}${eventKey||`${r.id}:${eventType}`}`;
     }
     return `${ACK_PREFIX}${r.id}:${r.status}`;
   }
@@ -61,26 +67,20 @@
   async function consumePendingReservation(){
     try{
       const db=await openPushOpenDb();
-
       const row=await new Promise((resolve,reject)=>{
         const tx=db.transaction(PUSH_OPEN_STORE,'readwrite');
         const store=tx.objectStore(PUSH_OPEN_STORE);
         const get=store.get('customerReservation');
-
         get.onsuccess=()=>{
           const value=get.result||null;
           store.delete('customerReservation');
           resolve(value);
         };
-
         get.onerror=()=>reject(get.error);
       });
-
       db.close();
-
       if(!row?.reservation_id)return null;
       if(row.saved_at&&Date.now()-Number(row.saved_at)>48*60*60*1000)return null;
-
       return row;
     }catch(error){
       console.warn('push open read failed',error);
@@ -92,7 +92,6 @@
     if(document.getElementById('customerPersistentReservationAlert'))return;
 
     const style=document.createElement('style');
-
     style.textContent=`
       #customerPersistentReservationAlert{z-index:99999}
       #customerPersistentReservationAlert .persistentReservationBox{width:min(92vw,460px)}
@@ -105,8 +104,8 @@
       #customerPersistentReservationAlert .changeArrow{color:#b77e76;font-weight:700}
       #customerPersistentReservationAlert .changeNew{color:#6d4f4c;font-weight:800}
       #customerPersistentReservationAlert .changeBadge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#ead4ce;color:#7b5550;font-size:11px;font-weight:800;white-space:nowrap}
+      #customerPersistentReservationAlert .reminderMessage{margin:14px 0 0;padding:11px 13px;border-radius:12px;background:#fbf2ef;color:#6d4f4c;font-weight:700;line-height:1.5}
     `;
-
     document.head.appendChild(style);
 
     const wrap=document.createElement('div');
@@ -114,7 +113,6 @@
     wrap.className='modalBackdrop hidden';
     wrap.setAttribute('role','dialog');
     wrap.setAttribute('aria-modal','true');
-
     wrap.innerHTML=`
       <section class="confirmBox persistentReservationBox">
         <div class="confirmIcon" id="persistentReservationIcon">✓</div>
@@ -127,10 +125,8 @@
         </div>
       </section>
     `;
-
     document.body.appendChild(wrap);
 
-    // 배경을 눌러도 닫히지 않는다. 반드시 버튼으로 확인해야 한다.
     wrap.addEventListener('click',event=>{
       if(event.target===wrap)event.stopPropagation();
     });
@@ -157,7 +153,15 @@
     `;
   }
 
-  function detailBody(r,rejected=false,changed=false,changes={}){
+  function detailBody(r,rejected=false,changed=false,changes={},reminderHours=0){
+    const reminderText=reminderHours
+      ? `<p class="reminderMessage">${
+          reminderHours===24
+            ? '내일 예약이 있습니다. 예약 내용을 확인해주세요.'
+            : `예약 ${reminderHours}시간 전입니다. 예약 내용을 확인해주세요.`
+        }</p>`
+      : '';
+
     return `
       <div class="reviewList">
         <div><span>예약자</span><b>${escHtml(r.customer_name||'고객')}</b></div>
@@ -172,6 +176,7 @@
       </div>
       ${rejected?'<p style="margin-top:14px">다른 시간으로 다시 예약해주세요.</p>':''}
       ${changed?'<p style="margin-top:14px">색으로 강조된 항목이 변경된 내용입니다.</p>':''}
+      ${reminderText}
     `;
   }
 
@@ -182,9 +187,11 @@
 
   function showPersistentReservation(r,eventType='',eventKey='',changes={}){
     const changed=eventType==='changed'&&r?.status==='예약확정';
+    const reminderHours=reminderHoursFromEvent(eventType);
+    const reminder=reminderHours>0&&r?.status==='예약확정';
     const validNormal=r&&['예약확정','예약거절'].includes(r.status);
 
-    if(!r||(!changed&&!validNormal)||isAcked(r,eventType,eventKey))return;
+    if(!r||(!changed&&!reminder&&!validNormal)||isAcked(r,eventType,eventKey))return;
 
     ensurePersistentModal();
     visibleReservation={reservation:r,eventType,eventKey};
@@ -201,14 +208,17 @@
     if(changed){
       title.textContent='예약 내용이 변경되었습니다 ✓';
       icon.textContent='✓';
+    }else if(reminder){
+      title.textContent=reminderHours===24?'내일 예약이 있습니다':'예약 리마인드';
+      icon.textContent='◷';
     }else{
       title.textContent=rejected?'예약이 거절되었습니다':'예약이 확정되었습니다 ✓';
       icon.textContent=rejected?'!':'✓';
     }
 
-    body.innerHTML=detailBody(r,rejected,changed,changes);
+    body.innerHTML=detailBody(r,rejected,changed,changes,reminderHours);
 
-    if(rejected&&!changed){
+    if(rejected&&!changed&&!reminder){
       actions.classList.add('two');
       secondary.style.display='';
       secondary.textContent='닫기';
@@ -222,7 +232,6 @@
       primary.onclick=()=>{
         acknowledge(r,eventType,eventKey);
         hidePersistentModal();
-
         if(typeof window.openBooking==='function'){
           window.openBooking(r.service_id?{serviceId:r.service_id}:{});
         }
@@ -262,7 +271,7 @@
           showPersistentReservation(r,eventType,eventKey,changes);
         }
       }else if(['예약확정','예약거절'].includes(r.status)&&!isAcked(r,eventType,eventKey)){
-        showPersistentReservation(r,eventType,eventKey);
+        showPersistentReservation(r,eventType,eventKey,changes);
       }
 
       const clean=new URL(location.href);
@@ -335,7 +344,6 @@
     }
   });
 
-  // 앱을 보고 있는 중 결과/변경 알림이 와도 시스템 배너를 누르지 않아도 놓치지 않는다.
   setInterval(()=>{
     if(document.visibilityState==='visible'&&!visibleReservation){
       readPendingOpen();
