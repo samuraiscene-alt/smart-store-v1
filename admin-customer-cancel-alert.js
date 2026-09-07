@@ -12,6 +12,7 @@
   let customerCancelledIds = new Set();
   let refreshBusy = false;
   let currentPopupId = '';
+  let decorateQueued = false;
 
   const esc = (v='') => String(v).replace(/[&<>"']/g, ch => ({
     '&':'&amp;',
@@ -137,9 +138,7 @@
         <div class="customerCancelIcon">!</div>
         <h3>고객이 예약을 취소했습니다</h3>
         <p class="customerCancelSub">예약 내용을 확인해주세요.</p>
-
         <div id="adminCustomerCancelDetail" class="customerCancelDetail"></div>
-
         <button
           id="adminCustomerCancelConfirm"
           class="customerCancelConfirm"
@@ -151,13 +150,12 @@
 
     document.body.appendChild(w);
 
-    document.getElementById('adminCustomerCancelConfirm').onclick = () => {
+    document.getElementById('adminCustomerCancelConfirm').addEventListener('click', () => {
       if(currentPopupId) markAck(currentPopupId);
       currentPopupId = '';
       w.classList.add('hidden');
-
       setTimeout(refresh,120);
-    };
+    });
   }
 
   async function resolveStoreId(){
@@ -196,17 +194,35 @@
       );
 
       if(opt){
-        opt.value = '취소';
-        opt.textContent = '고객취소';
+        if(opt.value !== '취소') opt.value = '취소';
+        if(opt.textContent.trim() !== '고객취소') opt.textContent = '고객취소';
       }
 
-      sel.classList.add('customerCancelledSelect');
+      if(!sel.classList.contains('customerCancelledSelect')){
+        sel.classList.add('customerCancelledSelect');
+      }
 
       const item = sel.closest('.reservationItem');
+
       if(item){
-        item.classList.remove('pendingApproval');
-        item.classList.add('customerCancelledItem');
+        if(item.classList.contains('pendingApproval')){
+          item.classList.remove('pendingApproval');
+        }
+        if(!item.classList.contains('customerCancelledItem')){
+          item.classList.add('customerCancelledItem');
+        }
       }
+    });
+  }
+
+  function queueDecorate(){
+    if(decorateQueued) return;
+
+    decorateQueued = true;
+
+    requestAnimationFrame(() => {
+      decorateQueued = false;
+      decorateStatus(false);
     });
   }
 
@@ -252,7 +268,6 @@
 
       customerCancelledIds = new Set((rows || []).map(r => r.id));
 
-      // DB에서 고객취소가 확인되면 현재 화면도 즉시 고객취소 상태로 맞춘다.
       decorateStatus(true);
 
       if(currentPopupId) return;
@@ -273,14 +288,17 @@
   addStyles();
   ensureModal();
 
-  // 예약 화면이 다시 그려져도 "고객취소" 표시를 유지한다.
-  const observer = new MutationObserver(() => decorateStatus(false));
-  observer.observe(document.documentElement, {
-    childList:true,
-    subtree:true
-  });
-
   const start = () => {
+    const reservationList = document.getElementById('reservationList');
+
+    if(reservationList){
+      const observer = new MutationObserver(queueDecorate);
+      observer.observe(reservationList, {
+        childList:true,
+        subtree:true
+      });
+    }
+
     refresh();
 
     let tries = 0;
@@ -292,12 +310,11 @@
   };
 
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', start);
+    document.addEventListener('DOMContentLoaded', start, {once:true});
   }else{
     start();
   }
 
-  // 푸시를 눌러 관리자 앱으로 돌아온 경우에도 즉시 확인한다.
   window.addEventListener('pageshow', () => setTimeout(refresh,150));
   window.addEventListener('focus', () => setTimeout(refresh,150));
 
