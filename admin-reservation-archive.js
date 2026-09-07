@@ -186,45 +186,73 @@
       : '<p class="reservationArchiveEmpty">예약이 없습니다.</p>';
   }
 
-  function weekCard(start,rs,keyPrefix='week'){
-    const end=addDays(start,6);
-    const count=rs.length;
-    const key=`${keyPrefix}:${start}`;
-    return groupCard({
-      key,
-      title:`${md(start)} ~ ${md(end)}`,
-      meta:`예약 ${count}건`,
-      body:weekBody(rs),
-      deleteIds:rs.map(r=>r.id),
-      deleteLabel:`${md(start)} ~ ${md(end)} 예약 ${count}건 전체`
-    });
-  }
+  function weekCard(start,rs,keyPrefix='week',displayStart=start,displayEnd=addDays(start,6)){
+  const count=rs.length;
+  const key=`${keyPrefix}:${start}`;
+  return groupCard({
+    key,
+    title:`${md(displayStart)} ~ ${md(displayEnd)}`,
+    meta:`예약 ${count}건`,
+    body:weekBody(rs),
+    deleteIds:rs.map(r=>r.id),
+    deleteLabel:`${md(displayStart)} ~ ${md(displayEnd)} 예약 ${count}건 전체`
+  });
+}
 
-  function weeksWithin(rs,keyPrefix){
-    const groups=new Map();
-    sortedReservations(rs).forEach(r=>{
-      const wk=startOfWeek(r.date);
-      if(!groups.has(wk))groups.set(wk,[]);
-      groups.get(wk).push(r);
-    });
-    return [...groups.entries()]
-      .sort((a,b)=>a[0].localeCompare(b[0]))
-      .map(([wk,items])=>weekCard(wk,items,keyPrefix))
-      .join('');
-  }
+function weeksWithin(rs,keyPrefix,clipMonth=''){
+  const groups=new Map();
 
-  function monthCard(key,rs,kind='month'){
-    const [year,month]=key.split('-');
-    const count=rs.length;
-    return groupCard({
-      key:`${kind}:${key}`,
-      title:`${Number(year)}년 ${Number(month)}월`,
-      meta:`예약 ${count}건`,
-      body:weeksWithin(rs,`${kind}-week:${key}`),
-      deleteIds:rs.map(r=>r.id),
-      deleteLabel:`${Number(year)}년 ${Number(month)}월 예약 ${count}건 전체`
-    });
-  }
+  sortedReservations(rs).forEach(r=>{
+    const wk=startOfWeek(r.date);
+    if(!groups.has(wk))groups.set(wk,[]);
+    groups.get(wk).push(r);
+  });
+
+  return [...groups.entries()]
+    .sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([wk,items])=>{
+      let displayStart=wk;
+      let displayEnd=addDays(wk,6);
+
+      if(clipMonth){
+        const [year,month]=clipMonth.split('-').map(Number);
+        const monthStart=`${clipMonth}-01`;
+        const monthEnd=dateStr(
+          new Date(Date.UTC(year,month,0))
+        );
+
+        if(displayStart<monthStart)displayStart=monthStart;
+        if(displayEnd>monthEnd)displayEnd=monthEnd;
+      }
+
+      return weekCard(
+        wk,
+        items,
+        keyPrefix,
+        displayStart,
+        displayEnd
+      );
+    })
+    .join('');
+}
+
+function monthCard(key,rs,kind='month'){
+  const [year,month]=key.split('-');
+  const count=rs.length;
+
+  return groupCard({
+    key:`${kind}:${key}`,
+    title:`${Number(year)}년 ${Number(month)}월`,
+    meta:`예약 ${count}건`,
+    body:weeksWithin(
+      rs,
+      `${kind}-week:${key}`,
+      key
+    ),
+    deleteIds:rs.map(r=>r.id),
+    deleteLabel:`${Number(year)}년 ${Number(month)}월 예약 ${count}건 전체`
+  });
+}
 
   function monthsWithinYear(year,rs){
     const groups=new Map();
