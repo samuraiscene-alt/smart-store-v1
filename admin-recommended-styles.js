@@ -11,7 +11,7 @@
   let editingImageUrl='';
   let busy=false;
   let previewObjectUrl='';
-  let imageView={fit:'contain',x:50,y:50,zoom:1};
+  let imageView={fit:'contain',x:0,y:0,zoom:1};
   let touchState=null;
 
   const q=s=>document.querySelector(s);
@@ -37,11 +37,13 @@
       #${MODAL_ID}{z-index:100020}
       #${MODAL_ID} .recommendedStyleBox{width:min(94vw,470px);max-height:90vh;overflow:auto}
       .recommendedStylePreview{width:100%;aspect-ratio:5/3;height:auto;margin:12px 0 10px;border-radius:20px;overflow:hidden;border:1px solid #eadfda;background:#efe3df;display:grid;place-items:center;color:#fff;font-weight:900;position:relative;touch-action:none;user-select:none}
-      .recommendedStylePreview img{width:100%;height:100%;display:block;will-change:transform,object-position;pointer-events:none}
+      .recommendedStylePreview img{position:absolute;left:50%;top:50%;width:auto;height:auto;max-width:none;max-height:none;display:block;pointer-events:none;will-change:transform}
       .recommendedStyleAdjustHelp{margin:0 0 10px;color:#8e817b;font-size:12px;line-height:1.45;text-align:center}
-      .recommendedStyleFitButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
-      .recommendedStyleFitButtons button{border:1px solid #eadfda;background:#fff;color:#6d4f4c;border-radius:14px;padding:11px 8px;font-weight:800}
+      .recommendedStyleFitButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 9px}
+      .recommendedStyleFitButtons button,.recommendedStyleZoomButtons button{border:1px solid #eadfda;background:#fff;color:#6d4f4c;border-radius:14px;padding:11px 8px;font-weight:800}
       .recommendedStyleFitButtons button.active{background:#6d4f4c;color:#fff;border-color:#6d4f4c}
+      .recommendedStyleZoomButtons{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:0 0 14px}
+      .recommendedStyleZoomValue{min-width:72px;text-align:center;color:#6d4f4c;font-size:13px;font-weight:900}
       .recommendedStyleToggle{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:13px 0;padding:14px 15px;border:1px solid #eadfda;border-radius:16px;background:#fff}
       .recommendedStyleToggle span{font-size:13px;font-weight:800}
       .recommendedStyleToggle input{width:23px;height:23px;accent-color:#6d4f4c}
@@ -110,6 +112,11 @@
           <button id="recommendedStyleFitContain" type="button">전체 보기</button>
           <button id="recommendedStyleFitCover" type="button">화면 채우기</button>
         </div>
+        <div class="recommendedStyleZoomButtons">
+          <button id="recommendedStyleZoomOut" type="button">− 축소</button>
+          <span id="recommendedStyleZoomValue" class="recommendedStyleZoomValue">100%</span>
+          <button id="recommendedStyleZoomIn" type="button">＋ 확대</button>
+        </div>
         <label class="field"><span>스타일 사진</span><input id="recommendedStyleImage" type="file" accept="image/*" /></label>
         <label class="field"><span>스타일명</span><input id="recommendedStyleTitle" placeholder="예: Soft Pink" /></label>
         <label class="field"><span>설명</span><textarea id="recommendedStyleDescription" rows="3" placeholder="짧은 스타일 설명"></textarea></label>
@@ -129,6 +136,8 @@
     q('#recommendedStyleImage').addEventListener('change',previewFile);
     q('#recommendedStyleFitContain').addEventListener('click',()=>setFit('contain'));
     q('#recommendedStyleFitCover').addEventListener('click',()=>setFit('cover'));
+    q('#recommendedStyleZoomOut').addEventListener('click',()=>setZoom(imageView.zoom-0.1));
+    q('#recommendedStyleZoomIn').addEventListener('click',()=>setZoom(imageView.zoom+0.1));
     installPreviewGestures();
   }
 
@@ -138,28 +147,70 @@
   function setFit(fit){
     imageView.fit=fit==='cover'?'cover':'contain';
     imageView.zoom=1;
-    imageView.x=50;
-    imageView.y=50;
+    imageView.x=0;
+    imageView.y=0;
+    updatePreviewView();
+  }
+
+  function setZoom(value){
+    imageView.zoom=clamp(Number(value)||1,0.5,4);
     updatePreviewView();
   }
 
   function updatePreviewView(){
     const preview=q('#recommendedStylePreview');
     const img=preview?.querySelector('img');
+
     q('#recommendedStyleFitContain')?.classList.toggle('active',imageView.fit==='contain');
     q('#recommendedStyleFitCover')?.classList.toggle('active',imageView.fit==='cover');
-    if(!img)return;
-    img.style.objectFit=imageView.fit;
-    img.style.objectPosition=`${imageView.x}% ${imageView.y}%`;
-    img.style.transformOrigin=`${imageView.x}% ${imageView.y}%`;
-    img.style.transform=`scale(${imageView.zoom})`;
+
+    const zoomText=q('#recommendedStyleZoomValue');
+    if(zoomText)zoomText.textContent=`${Math.round(imageView.zoom*100)}%`;
+
+    if(!img || !img.naturalWidth || !img.naturalHeight)return;
+
+    const rect=preview.getBoundingClientRect();
+    if(!rect.width || !rect.height)return;
+
+    const containScale=Math.min(
+      rect.width/img.naturalWidth,
+      rect.height/img.naturalHeight
+    );
+    const coverScale=Math.max(
+      rect.width/img.naturalWidth,
+      rect.height/img.naturalHeight
+    );
+    const fitScale=imageView.fit==='cover'?coverScale:containScale;
+    const actualScale=fitScale*imageView.zoom;
+
+    const offsetX=(imageView.x/100)*rect.width;
+    const offsetY=(imageView.y/100)*rect.height;
+
+    img.style.width=`${img.naturalWidth}px`;
+    img.style.height=`${img.naturalHeight}px`;
+    img.style.transform=
+      `translate(-50%,-50%) translate3d(${offsetX}px,${offsetY}px,0) scale(${actualScale})`;
+    img.style.transformOrigin='50% 50%';
   }
 
   function showPreviewImage(url){
     const preview=q('#recommendedStylePreview');
     if(!preview)return;
-    preview.innerHTML=url?`<img src="${escText(url)}" alt="">`:'사진 미리보기';
-    updatePreviewView();
+
+    if(!url){
+      preview.innerHTML='사진 미리보기';
+      updatePreviewView();
+      return;
+    }
+
+    const img=document.createElement('img');
+    img.alt='';
+    img.onload=updatePreviewView;
+    img.src=url;
+    preview.innerHTML='';
+    preview.appendChild(img);
+
+    if(img.complete)updatePreviewView();
   }
 
   function distance(a,b){
@@ -173,7 +224,14 @@
 
     preview.addEventListener('touchstart',e=>{
       if(!preview.querySelector('img'))return;
-      if(e.touches.length===1){
+
+      if(e.touches.length>=2){
+        touchState={
+          mode:'pinch',
+          distance:distance(e.touches[0],e.touches[1]),
+          zoom:imageView.zoom
+        };
+      }else if(e.touches.length===1){
         touchState={
           mode:'drag',
           x:e.touches[0].clientX,
@@ -181,13 +239,8 @@
           baseX:imageView.x,
           baseY:imageView.y
         };
-      }else if(e.touches.length>=2){
-        touchState={
-          mode:'pinch',
-          distance:distance(e.touches[0],e.touches[1]),
-          zoom:imageView.zoom
-        };
       }
+
       e.preventDefault();
     },{passive:false});
 
@@ -202,11 +255,17 @@
             zoom:imageView.zoom
           };
         }
+
         const d=distance(e.touches[0],e.touches[1]);
         if(touchState.distance>0){
-          imageView.zoom=clamp(touchState.zoom*(d/touchState.distance),1,4);
+          imageView.zoom=clamp(
+            touchState.zoom*(d/touchState.distance),
+            0.5,
+            4
+          );
           updatePreviewView();
         }
+
         e.preventDefault();
         return;
       }
@@ -221,11 +280,22 @@
             baseY:imageView.y
           };
         }
+
         const rect=preview.getBoundingClientRect();
         const dx=e.touches[0].clientX-touchState.x;
         const dy=e.touches[0].clientY-touchState.y;
-        imageView.x=clamp(touchState.baseX-(dx/Math.max(1,rect.width))*100,0,100);
-        imageView.y=clamp(touchState.baseY-(dy/Math.max(1,rect.height))*100,0,100);
+
+        imageView.x=clamp(
+          touchState.baseX+(dx/Math.max(1,rect.width))*100,
+          -150,
+          150
+        );
+        imageView.y=clamp(
+          touchState.baseY+(dy/Math.max(1,rect.height))*100,
+          -150,
+          150
+        );
+
         updatePreviewView();
         e.preventDefault();
       }
@@ -234,6 +304,8 @@
     const end=()=>{touchState=null;};
     preview.addEventListener('touchend',end,{passive:true});
     preview.addEventListener('touchcancel',end,{passive:true});
+
+    window.addEventListener('resize',updatePreviewView);
   }
 
   async function waitForStore(){
@@ -274,7 +346,7 @@
     list.innerHTML=rows.map(row=>{
       const svc=services.find(s=>s.id===row.service_id);
       return `<article class="adminItem recommendedStyleRow">
-        <div class="recommendedStyleThumb">${row.image_url?`<img src="${escText(row.image_url)}" alt="" style="object-fit:${row.image_fit==='cover'?'cover':'contain'};object-position:${Number(row.image_position_x??50)}% ${Number(row.image_position_y??50)}%;transform:scale(${Number(row.image_zoom??1)});transform-origin:${Number(row.image_position_x??50)}% ${Number(row.image_position_y??50)}%">`:''}</div>
+        <div class="recommendedStyleThumb">${row.image_url?`<img src="${escText(row.image_url)}" alt="" style="object-fit:${row.image_fit==='cover'?'cover':'contain'};object-position:${50+clamp(Number(row.image_position_x??0),-45,45)}% ${50+clamp(Number(row.image_position_y??0),-45,45)}%;transform:scale(${Number(row.image_zoom??1)});transform-origin:50% 50%">`:''}</div>
         <div class="recommendedStyleRowMain">
           <h3>${escText(row.title)}</h3>
           <p>${escText(row.description||'설명 없음')}</p>
@@ -303,9 +375,9 @@
     q('#recommendedStyleImage').value='';
     imageView={
       fit:row?.image_fit==='cover'?'cover':'contain',
-      x:clamp(Number(row?.image_position_x??50),0,100),
-      y:clamp(Number(row?.image_position_y??50),0,100),
-      zoom:clamp(Number(row?.image_zoom??1),1,4)
+      x:clamp(Number(row?.image_position_x??0),-150,150),
+      y:clamp(Number(row?.image_position_y??0),-150,150),
+      zoom:clamp(Number(row?.image_zoom??1),0.5,4)
     };
     showPreviewImage(editingImageUrl);
     q('#recommendedStyleDelete').classList.toggle('hiddenButton',!row);
@@ -328,7 +400,7 @@
     if(!file)return;
     if(previewObjectUrl)URL.revokeObjectURL(previewObjectUrl);
     previewObjectUrl=URL.createObjectURL(file);
-    imageView={fit:'contain',x:50,y:50,zoom:1};
+    imageView={fit:'contain',x:0,y:0,zoom:1};
     showPreviewImage(previewObjectUrl);
   }
 
