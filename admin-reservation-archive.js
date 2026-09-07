@@ -31,13 +31,13 @@
       .reservationSwipeDelete{position:absolute;inset:0 auto 0 0;width:88px;border:0;border-radius:18px 0 0 18px;background:#b24e4e;color:#fff;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:1}
       .reservationSwipeContent{position:relative;z-index:2;transform:translateX(0);transition:transform .2s ease;touch-action:pan-y;background:#fff;border-radius:18px}
       .reservationSwipe.dragging .reservationSwipeContent{transition:none}
-      .reservationGroupCard{border:1px solid #eadfda;box-shadow:0 5px 15px rgba(81,60,52,.04);overflow:hidden}
+      .reservationGroupCard{border:1px solid #eadfda;border-radius:18px;box-shadow:0 5px 15px rgba(81,60,52,.04);overflow:hidden}
       .reservationGroupToggle{width:100%;border:0;background:#fff;color:#4b3c37;padding:15px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left}
       .reservationGroupMain{min-width:0}
       .reservationGroupTitle{display:block;font-size:15px;font-weight:900;line-height:1.25}
       .reservationGroupMeta{display:block;margin-top:4px;color:#968983;font-size:12px;font-weight:700}
       .reservationGroupArrow{flex:0 0 auto;color:#9c8b84;font-size:16px;transition:transform .18s ease}
-      .reservationGroupCard.open>.reservationGroupToggle .reservationGroupArrow{transform:rotate(180deg)}
+      .reservationGroupCard.open > .reservationSwipe .reservationGroupArrow{transform:rotate(180deg)}
       .reservationGroupBody{display:grid;gap:9px;padding:0 10px 10px;background:#fbf8f6}
       .reservationGroupBody.hidden{display:none}
       .reservationGroupBody .reservationSwipe{border-radius:15px}
@@ -147,59 +147,59 @@
   }
 
   function groupCard({key,title,meta,body,deleteIds,deleteLabel}){
-  const isOpen=openGroups.has(key);
-  const deleteKey=deleteIds.length
-    ?registerDelete(deleteIds,deleteLabel)
-    :null;
+    const isOpen=openGroups.has(key);
+    const deleteKey=deleteIds.length
+      ?registerDelete(deleteIds,deleteLabel)
+      :null;
 
-  return `
-    <section
-      class="reservationGroupCard ${isOpen?'open':''}"
-      data-res-group="${key}">
+    return `
+      <section
+        class="reservationGroupCard ${isOpen?'open':''}"
+        data-res-group="${key}">
 
-      <div
-        class="reservationSwipe"
-        data-swipe-wrap
-        ${deleteKey?'':'data-swipe-disabled="1"'}>
+        <div
+          class="reservationSwipe"
+          data-swipe-wrap
+          ${deleteKey?'':'data-swipe-disabled="1"'}>
 
-        ${deleteKey
-          ?`<button
-              class="reservationSwipeDelete"
+          ${deleteKey
+            ?`<button
+                class="reservationSwipeDelete"
+                type="button"
+                data-res-delete-key="${deleteKey}">
+                삭제
+              </button>`
+            :''
+          }
+
+          <div class="reservationSwipeContent">
+            <button
+              class="reservationGroupToggle"
               type="button"
-              data-res-delete-key="${deleteKey}">
-              삭제
-            </button>`
-          :''
-        }
+              data-group-toggle="${key}"
+              aria-expanded="${isOpen?'true':'false'}">
 
-        <div class="reservationSwipeContent">
-          <button
-            class="reservationGroupToggle"
-            type="button"
-            data-group-toggle="${key}"
-            aria-expanded="${isOpen?'true':'false'}">
-
-            <span class="reservationGroupMain">
-              <span class="reservationGroupTitle">
-                ${safeEsc(title)}
+              <span class="reservationGroupMain">
+                <span class="reservationGroupTitle">
+                  ${safeEsc(title)}
+                </span>
+                <span class="reservationGroupMeta">
+                  ${safeEsc(meta)}
+                </span>
               </span>
-              <span class="reservationGroupMeta">
-                ${safeEsc(meta)}
-              </span>
-            </span>
 
-            <span class="reservationGroupArrow">⌄</span>
-          </button>
+              <span class="reservationGroupArrow">⌄</span>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div
-        class="reservationGroupBody ${isOpen?'':'hidden'}"
-        data-group-body="${key}">
-        ${body}
-      </div>
-    </section>`;
-}
+        <div
+          class="reservationGroupBody ${isOpen?'':'hidden'}"
+          data-group-body="${key}">
+          ${body}
+        </div>
+      </section>`;
+  }
 
   function reservationCard(r){
     const statuses=['예약대기','예약확정','방문완료','예약거절','취소','노쇼'];
@@ -225,92 +225,72 @@
   }
 
   function weekCard(start,rs,keyPrefix='week',displayStart=start,displayEnd=addDays(start,6)){
-  const count=rs.length;
-  const key=`${keyPrefix}:${start}`;
-  return groupCard({
-    key,
-    title:`${md(displayStart)} ~ ${md(displayEnd)}`,
-    meta:`예약 ${count}건`,
-    body:weekBody(rs),
-    deleteIds:rs.map(r=>r.id),
-    deleteLabel:`${md(displayStart)} ~ ${md(displayEnd)} 예약 ${count}건 전체`
-  });
-}
+    const count=rs.length;
+    const key=`${keyPrefix}:${start}`;
 
-function weeksWithin(rs,keyPrefix,clipMonth=''){
-  const groups=new Map();
+    const monthMatch=String(keyPrefix).match(/(\d{4}-\d{2})$/);
 
-  sortedReservations(rs).forEach(r=>{
-    const wk=startOfWeek(r.date);
+    if(monthMatch){
+      const scope=monthMatch[1];
+      const [year,month]=scope.split('-').map(Number);
+      const monthStart=`${scope}-01`;
+      const monthEnd=dateStr(new Date(Date.UTC(year,month,0)));
 
-    if(!groups.has(wk)){
-      groups.set(wk,[]);
+      if(displayStart<monthStart)displayStart=monthStart;
+      if(displayEnd>monthEnd)displayEnd=monthEnd;
     }
 
-    groups.get(wk).push(r);
-  });
-
-  let monthStart='';
-  let monthEnd='';
-
-  if(clipMonth){
-    const [year,month]=clipMonth
-      .split('-')
-      .map(Number);
-
-    monthStart=`${clipMonth}-01`;
-
-    monthEnd=dateStr(
-      new Date(
-        Date.UTC(year,month,0)
-      )
-    );
+    return groupCard({
+      key,
+      title:`${md(displayStart)} ~ ${md(displayEnd)}`,
+      meta:`예약 ${count}건`,
+      body:weekBody(rs),
+      deleteIds:rs.map(r=>r.id),
+      deleteLabel:`${md(displayStart)} ~ ${md(displayEnd)} 예약 ${count}건 전체`
+    });
   }
 
-  return [...groups.entries()]
-    .sort((a,b)=>a[0].localeCompare(b[0]))
-    .map(([wk,items])=>{
+  function weeksWithin(rs,keyPrefix,clipMonth=''){
+    const groups=new Map();
 
-      const realWeekEnd=addDays(wk,6);
+    sortedReservations(rs).forEach(r=>{
+      const wk=startOfWeek(r.date);
+      if(!groups.has(wk))groups.set(wk,[]);
+      groups.get(wk).push(r);
+    });
 
-      const displayStart=
-        monthStart && wk<monthStart
-          ?monthStart
-          :wk;
+    let monthStart='';
+    let monthEnd='';
 
-      const displayEnd=
-        monthEnd && realWeekEnd>monthEnd
-          ?monthEnd
-          :realWeekEnd;
+    if(clipMonth){
+      const [year,month]=clipMonth.split('-').map(Number);
+      monthStart=`${clipMonth}-01`;
+      monthEnd=dateStr(new Date(Date.UTC(year,month,0)));
+    }
 
-      return weekCard(
-        wk,
-        items,
-        keyPrefix,
-        displayStart,
-        displayEnd
-      );
-    })
-    .join('');
-}
+    return [...groups.entries()]
+      .sort((a,b)=>a[0].localeCompare(b[0]))
+      .map(([wk,items])=>{
+        const realWeekEnd=addDays(wk,6);
+        const displayStart=monthStart&&wk<monthStart?monthStart:wk;
+        const displayEnd=monthEnd&&realWeekEnd>monthEnd?monthEnd:realWeekEnd;
+        return weekCard(wk,items,keyPrefix,displayStart,displayEnd);
+      })
+      .join('');
+  }
 
-function monthCard(key,rs,kind='month'){
-  const [year,month]=key.split('-');
-  const count=rs.length;
-
-  return groupCard({
-    key:`${kind}:${key}`,
-    title:`${Number(year)}년 ${Number(month)}월`,
-    meta:`예약 ${count}건`,
-    body:weeksWithin(
-      rs,
-      `${kind}-week:${key}`,
-      key
-    ),
-    deleteIds:rs.map(r=>r.id),
-    deleteLabel:`${Number(year)}년 ${Number(month)}월 예약 ${count}건 전체`
-  });
-}
+  function monthCard(key,rs,kind='month'){
+    const [year,month]=key.split('-');
+    const count=rs.length;
+    return groupCard({
+      key:`${kind}:${key}`,
+      title:`${Number(year)}년 ${Number(month)}월`,
+      meta:`예약 ${count}건`,
+      body:weeksWithin(rs,`${kind}-week:${key}`,key),
+      deleteIds:rs.map(r=>r.id),
+      deleteLabel:`${Number(year)}년 ${Number(month)}월 예약 ${count}건 전체`
+    });
+  }
 
   function monthsWithinYear(year,rs){
     const groups=new Map();
@@ -561,6 +541,10 @@ function monthCard(key,rs,kind='month'){
 
     const toggle=e.target.closest('[data-group-toggle]');
     if(toggle){
+      const swipe=toggle.closest('[data-swipe-wrap]');
+      setSwipeX(swipe,0,true);
+      closeOtherSwipes();
+
       const key=toggle.dataset.groupToggle;
       const card=toggle.closest('[data-res-group]');
       const body=card?.querySelector(`:scope > [data-group-body="${CSS.escape(key)}"]`);
