@@ -147,21 +147,59 @@
   }
 
   function groupCard({key,title,meta,body,deleteIds,deleteLabel}){
-    const isOpen=openGroups.has(key);
-    const deleteKey=deleteIds.length?registerDelete(deleteIds,deleteLabel):null;
-    const content=`
-      <section class="reservationGroupCard ${isOpen?'open':''}" data-res-group="${key}">
-        <button class="reservationGroupToggle" type="button" data-group-toggle="${key}" aria-expanded="${isOpen?'true':'false'}">
-          <span class="reservationGroupMain">
-            <span class="reservationGroupTitle">${safeEsc(title)}</span>
-            <span class="reservationGroupMeta">${safeEsc(meta)}</span>
-          </span>
-          <span class="reservationGroupArrow">⌄</span>
-        </button>
-        <div class="reservationGroupBody ${isOpen?'':'hidden'}" data-group-body="${key}">${body}</div>
-      </section>`;
-    return swipeWrap(content,deleteKey);
-  }
+  const isOpen=openGroups.has(key);
+  const deleteKey=deleteIds.length
+    ?registerDelete(deleteIds,deleteLabel)
+    :null;
+
+  return `
+    <section
+      class="reservationGroupCard ${isOpen?'open':''}"
+      data-res-group="${key}">
+
+      <div
+        class="reservationSwipe"
+        data-swipe-wrap
+        ${deleteKey?'':'data-swipe-disabled="1"'}>
+
+        ${deleteKey
+          ?`<button
+              class="reservationSwipeDelete"
+              type="button"
+              data-res-delete-key="${deleteKey}">
+              삭제
+            </button>`
+          :''
+        }
+
+        <div class="reservationSwipeContent">
+          <button
+            class="reservationGroupToggle"
+            type="button"
+            data-group-toggle="${key}"
+            aria-expanded="${isOpen?'true':'false'}">
+
+            <span class="reservationGroupMain">
+              <span class="reservationGroupTitle">
+                ${safeEsc(title)}
+              </span>
+              <span class="reservationGroupMeta">
+                ${safeEsc(meta)}
+              </span>
+            </span>
+
+            <span class="reservationGroupArrow">⌄</span>
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="reservationGroupBody ${isOpen?'':'hidden'}"
+        data-group-body="${key}">
+        ${body}
+      </div>
+    </section>`;
+}
 
   function reservationCard(r){
     const statuses=['예약대기','예약확정','방문완료','예약거절','취소','노쇼'];
@@ -204,26 +242,46 @@ function weeksWithin(rs,keyPrefix,clipMonth=''){
 
   sortedReservations(rs).forEach(r=>{
     const wk=startOfWeek(r.date);
-    if(!groups.has(wk))groups.set(wk,[]);
+
+    if(!groups.has(wk)){
+      groups.set(wk,[]);
+    }
+
     groups.get(wk).push(r);
   });
+
+  let monthStart='';
+  let monthEnd='';
+
+  if(clipMonth){
+    const [year,month]=clipMonth
+      .split('-')
+      .map(Number);
+
+    monthStart=`${clipMonth}-01`;
+
+    monthEnd=dateStr(
+      new Date(
+        Date.UTC(year,month,0)
+      )
+    );
+  }
 
   return [...groups.entries()]
     .sort((a,b)=>a[0].localeCompare(b[0]))
     .map(([wk,items])=>{
-      let displayStart=wk;
-      let displayEnd=addDays(wk,6);
 
-      if(clipMonth){
-        const [year,month]=clipMonth.split('-').map(Number);
-        const monthStart=`${clipMonth}-01`;
-        const monthEnd=dateStr(
-          new Date(Date.UTC(year,month,0))
-        );
+      const realWeekEnd=addDays(wk,6);
 
-        if(displayStart<monthStart)displayStart=monthStart;
-        if(displayEnd>monthEnd)displayEnd=monthEnd;
-      }
+      const displayStart=
+        monthStart && wk<monthStart
+          ?monthStart
+          :wk;
+
+      const displayEnd=
+        monthEnd && realWeekEnd>monthEnd
+          ?monthEnd
+          :realWeekEnd;
 
       return weekCard(
         wk,
