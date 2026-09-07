@@ -10,6 +10,9 @@
   let editingId=null;
   let editingImageUrl='';
   let busy=false;
+  let previewObjectUrl='';
+  let imageView={fit:'contain',x:50,y:50,zoom:1};
+  let touchState=null;
 
   const q=s=>document.querySelector(s);
   const qa=s=>[...document.querySelectorAll(s)];
@@ -24,7 +27,7 @@
     style.textContent=`
       #${PANEL_ID} .recommendedStyleIntro{margin:8px 0 14px;color:#8e817b;font-size:13px;line-height:1.5}
       .recommendedStyleRow{display:grid;grid-template-columns:82px 1fr auto;gap:13px;align-items:center}
-      .recommendedStyleThumb{width:82px;height:82px;border-radius:16px;overflow:hidden;background:linear-gradient(145deg,#ead7d1,#b78780);border:1px solid #eadfda}
+      .recommendedStyleThumb{width:82px;height:82px;border-radius:16px;overflow:hidden;background:#efe3df;border:1px solid #eadfda}
       .recommendedStyleThumb img{width:100%;height:100%;object-fit:cover;display:block}
       .recommendedStyleRowMain{min-width:0}
       .recommendedStyleRowMain h3{margin:0 0 5px;font-size:15px}
@@ -33,8 +36,12 @@
       .recommendedStyleBadge.off{background:#eee;color:#8d8d8d}
       #${MODAL_ID}{z-index:100020}
       #${MODAL_ID} .recommendedStyleBox{width:min(94vw,470px);max-height:90vh;overflow:auto}
-      .recommendedStylePreview{width:100%;height:210px;margin:12px 0 14px;border-radius:20px;overflow:hidden;border:1px solid #eadfda;background:linear-gradient(145deg,#ead7d1,#b78780);display:grid;place-items:center;color:#fff;font-weight:900}
-      .recommendedStylePreview img{width:100%;height:100%;object-fit:cover;display:block}
+      .recommendedStylePreview{width:100%;aspect-ratio:5/3;height:auto;margin:12px 0 10px;border-radius:20px;overflow:hidden;border:1px solid #eadfda;background:#efe3df;display:grid;place-items:center;color:#fff;font-weight:900;position:relative;touch-action:none;user-select:none}
+      .recommendedStylePreview img{width:100%;height:100%;display:block;will-change:transform,object-position;pointer-events:none}
+      .recommendedStyleAdjustHelp{margin:0 0 10px;color:#8e817b;font-size:12px;line-height:1.45;text-align:center}
+      .recommendedStyleFitButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
+      .recommendedStyleFitButtons button{border:1px solid #eadfda;background:#fff;color:#6d4f4c;border-radius:14px;padding:11px 8px;font-weight:800}
+      .recommendedStyleFitButtons button.active{background:#6d4f4c;color:#fff;border-color:#6d4f4c}
       .recommendedStyleToggle{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:13px 0;padding:14px 15px;border:1px solid #eadfda;border-radius:16px;background:#fff}
       .recommendedStyleToggle span{font-size:13px;font-weight:800}
       .recommendedStyleToggle input{width:23px;height:23px;accent-color:#6d4f4c}
@@ -98,6 +105,11 @@
           <button id="recommendedStyleClose" class="iconBtn" type="button">✕</button>
         </div>
         <div id="recommendedStylePreview" class="recommendedStylePreview">사진 미리보기</div>
+        <p class="recommendedStyleAdjustHelp">사진을 손가락으로 이동 · 두 손가락으로 확대/축소</p>
+        <div class="recommendedStyleFitButtons">
+          <button id="recommendedStyleFitContain" type="button">전체 보기</button>
+          <button id="recommendedStyleFitCover" type="button">화면 채우기</button>
+        </div>
         <label class="field"><span>스타일 사진</span><input id="recommendedStyleImage" type="file" accept="image/*" /></label>
         <label class="field"><span>스타일명</span><input id="recommendedStyleTitle" placeholder="예: Soft Pink" /></label>
         <label class="field"><span>설명</span><textarea id="recommendedStyleDescription" rows="3" placeholder="짧은 스타일 설명"></textarea></label>
@@ -115,6 +127,113 @@
     q('#recommendedStyleSave').addEventListener('click',saveCurrent);
     q('#recommendedStyleDelete').addEventListener('click',deleteCurrent);
     q('#recommendedStyleImage').addEventListener('change',previewFile);
+    q('#recommendedStyleFitContain').addEventListener('click',()=>setFit('contain'));
+    q('#recommendedStyleFitCover').addEventListener('click',()=>setFit('cover'));
+    installPreviewGestures();
+  }
+
+
+  const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
+
+  function setFit(fit){
+    imageView.fit=fit==='cover'?'cover':'contain';
+    imageView.zoom=1;
+    imageView.x=50;
+    imageView.y=50;
+    updatePreviewView();
+  }
+
+  function updatePreviewView(){
+    const preview=q('#recommendedStylePreview');
+    const img=preview?.querySelector('img');
+    q('#recommendedStyleFitContain')?.classList.toggle('active',imageView.fit==='contain');
+    q('#recommendedStyleFitCover')?.classList.toggle('active',imageView.fit==='cover');
+    if(!img)return;
+    img.style.objectFit=imageView.fit;
+    img.style.objectPosition=`${imageView.x}% ${imageView.y}%`;
+    img.style.transformOrigin=`${imageView.x}% ${imageView.y}%`;
+    img.style.transform=`scale(${imageView.zoom})`;
+  }
+
+  function showPreviewImage(url){
+    const preview=q('#recommendedStylePreview');
+    if(!preview)return;
+    preview.innerHTML=url?`<img src="${escText(url)}" alt="">`:'사진 미리보기';
+    updatePreviewView();
+  }
+
+  function distance(a,b){
+    return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+  }
+
+  function installPreviewGestures(){
+    const preview=q('#recommendedStylePreview');
+    if(!preview || preview.dataset.gestureReady==='1')return;
+    preview.dataset.gestureReady='1';
+
+    preview.addEventListener('touchstart',e=>{
+      if(!preview.querySelector('img'))return;
+      if(e.touches.length===1){
+        touchState={
+          mode:'drag',
+          x:e.touches[0].clientX,
+          y:e.touches[0].clientY,
+          baseX:imageView.x,
+          baseY:imageView.y
+        };
+      }else if(e.touches.length>=2){
+        touchState={
+          mode:'pinch',
+          distance:distance(e.touches[0],e.touches[1]),
+          zoom:imageView.zoom
+        };
+      }
+      e.preventDefault();
+    },{passive:false});
+
+    preview.addEventListener('touchmove',e=>{
+      if(!touchState || !preview.querySelector('img'))return;
+
+      if(e.touches.length>=2){
+        if(touchState.mode!=='pinch'){
+          touchState={
+            mode:'pinch',
+            distance:distance(e.touches[0],e.touches[1]),
+            zoom:imageView.zoom
+          };
+        }
+        const d=distance(e.touches[0],e.touches[1]);
+        if(touchState.distance>0){
+          imageView.zoom=clamp(touchState.zoom*(d/touchState.distance),1,4);
+          updatePreviewView();
+        }
+        e.preventDefault();
+        return;
+      }
+
+      if(e.touches.length===1){
+        if(touchState.mode!=='drag'){
+          touchState={
+            mode:'drag',
+            x:e.touches[0].clientX,
+            y:e.touches[0].clientY,
+            baseX:imageView.x,
+            baseY:imageView.y
+          };
+        }
+        const rect=preview.getBoundingClientRect();
+        const dx=e.touches[0].clientX-touchState.x;
+        const dy=e.touches[0].clientY-touchState.y;
+        imageView.x=clamp(touchState.baseX-(dx/Math.max(1,rect.width))*100,0,100);
+        imageView.y=clamp(touchState.baseY-(dy/Math.max(1,rect.height))*100,0,100);
+        updatePreviewView();
+        e.preventDefault();
+      }
+    },{passive:false});
+
+    const end=()=>{touchState=null;};
+    preview.addEventListener('touchend',end,{passive:true});
+    preview.addEventListener('touchcancel',end,{passive:true});
   }
 
   async function waitForStore(){
@@ -155,7 +274,7 @@
     list.innerHTML=rows.map(row=>{
       const svc=services.find(s=>s.id===row.service_id);
       return `<article class="adminItem recommendedStyleRow">
-        <div class="recommendedStyleThumb">${row.image_url?`<img src="${escText(row.image_url)}" alt="">`:''}</div>
+        <div class="recommendedStyleThumb">${row.image_url?`<img src="${escText(row.image_url)}" alt="" style="object-fit:${row.image_fit==='cover'?'cover':'contain'};object-position:${Number(row.image_position_x??50)}% ${Number(row.image_position_y??50)}%;transform:scale(${Number(row.image_zoom??1)});transform-origin:${Number(row.image_position_x??50)}% ${Number(row.image_position_y??50)}%">`:''}</div>
         <div class="recommendedStyleRowMain">
           <h3>${escText(row.title)}</h3>
           <p>${escText(row.description||'설명 없음')}</p>
@@ -182,7 +301,13 @@
     q('#recommendedStyleOrder').value=String(row?.sort_order??(rows.length+1));
     q('#recommendedStyleVisible').checked=row?.visible!==false;
     q('#recommendedStyleImage').value='';
-    q('#recommendedStylePreview').innerHTML=editingImageUrl?`<img src="${escText(editingImageUrl)}" alt="">`:'사진 미리보기';
+    imageView={
+      fit:row?.image_fit==='cover'?'cover':'contain',
+      x:clamp(Number(row?.image_position_x??50),0,100),
+      y:clamp(Number(row?.image_position_y??50),0,100),
+      zoom:clamp(Number(row?.image_zoom??1),1,4)
+    };
+    showPreviewImage(editingImageUrl);
     q('#recommendedStyleDelete').classList.toggle('hiddenButton',!row);
     q('#'+MODAL_ID).classList.remove('hidden');
   }
@@ -192,13 +317,19 @@
     q('#'+MODAL_ID)?.classList.add('hidden');
     editingId=null;
     editingImageUrl='';
+    if(previewObjectUrl){
+      URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl='';
+    }
   }
 
   function previewFile(){
     const file=q('#recommendedStyleImage').files?.[0];
     if(!file)return;
-    const url=URL.createObjectURL(file);
-    q('#recommendedStylePreview').innerHTML=`<img src="${url}" alt="">`;
+    if(previewObjectUrl)URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl=URL.createObjectURL(file);
+    imageView={fit:'contain',x:50,y:50,zoom:1};
+    showPreviewImage(previewObjectUrl);
   }
 
   async function uploadImage(file){
@@ -245,7 +376,20 @@
         imageUrl=await uploadImage(file);
         if(old && old!==imageUrl)removeImage(old).catch(()=>{});
       }
-      const payload={title,description:q('#recommendedStyleDescription').value.trim(),image_url:imageUrl||'',service_id:serviceId,price,visible:q('#recommendedStyleVisible').checked,sort_order:sortOrder,updated_at:new Date().toISOString()};
+      const payload={
+        title,
+        description:q('#recommendedStyleDescription').value.trim(),
+        image_url:imageUrl||'',
+        service_id:serviceId,
+        price,
+        visible:q('#recommendedStyleVisible').checked,
+        sort_order:sortOrder,
+        image_fit:imageView.fit,
+        image_position_x:Number(imageView.x.toFixed(2)),
+        image_position_y:Number(imageView.y.toFixed(2)),
+        image_zoom:Number(imageView.zoom.toFixed(3)),
+        updated_at:new Date().toISOString()
+      };
       if(editingId){
         const {error}=await sb.from('recommended_styles').update(payload).eq('id',editingId);
         if(error)throw error;
