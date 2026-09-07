@@ -27,7 +27,7 @@ function mapPayload(payload){
       staffLabel:st.staff_label||'담당자',notice:st.notice||'',introMode:st.intro_mode||'none',introMedia:st.intro_media_url||'',
       staffEnabled:st.staff_enabled!==false,reservationApprovalMode:st.reservation_approval_mode||'auto',
 customerCancelEnabled:st.customer_cancel_enabled===true,
-customerCancelDeadlineHours:Number(st.customer_cancel_deadline_hours||24),
+customerCancelDeadlineHours:Number(st.customer_cancel_deadline_hours??24),
 depositNoticeEnabled:st.deposit_notice_enabled===true,
 depositNoticeText:st.deposit_notice_text||'',
 lateCancelNoticeEnabled:st.late_cancel_notice_enabled===true,
@@ -239,7 +239,7 @@ const completionDepositNotice=
   ?`<div class="hintBox" style="margin-top:12px"><b>예약금 안내</b><br>${esc(data.store.depositNoticeText)}</div>`
   :'';
 
-const deadlineHours=Math.max(0,Number(data.store.customerCancelDeadlineHours||24));
+const deadlineHours=Math.max(0,Number(data.store.customerCancelDeadlineHours??24));
 const bookingTimeKst=new Date(`${booking.date}T${booking.time}:00+09:00`);
 const cancelDeadlineMs=bookingTimeKst.getTime()-(deadlineHours*60*60*1000);
 
