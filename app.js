@@ -223,21 +223,38 @@ async function createReservation(name,phone,svc){
   if(customerPhoneInput)customerPhoneInput.value='';
 
   const reservationId=result?.id||null;
-  const savedStatus=result?.status||'예약확정';
-  if(reservationId){
-    try{localStorage.setItem('smartStoreLastReservationId',reservationId)}catch{}
-    window.SmartStorePush?.sendNewReservation(reservationId);
-  }
-  const pushBox=reservationId?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eadfda">
-  const completionDepositNotice=data.store.depositNoticeEnabled&&String(data.store.depositNoticeText||'').trim()?`<div class="hintBox" style="margin-top:12px"><b>예약금 안내</b><br>${esc(data.store.depositNoticeText)}</div>`:'';
-    <button id="bookingPushEnable" class="secondary full" type="button" style="margin-top:0">🔔 예약 알림 받기</button>
-    <small id="bookingPushHelp" style="display:block;margin-top:8px;color:#8e817b;line-height:1.45">예약 승인·거절 결과를 아이폰 알림으로 받아보세요.</small>
-  </div>`:'';
-  if(savedStatus==='예약대기'){
-    showConfirm({title:'예약 신청이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 접수되었습니다.<br>매장 확인 후 예약이 확정됩니다.</p>${pushBox}`,ok:'확인',single:true});
-  }else{
-    showConfirm({title:'예약이 완료되었습니다',body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 확정되었습니다.</p>${pushBox}`,ok:'확인',single:true});
-  }
+const savedStatus=result?.status||'예약확정';
+
+if(reservationId){
+  try{localStorage.setItem('smartStoreLastReservationId',reservationId)}catch{}
+  window.SmartStorePush?.sendNewReservation(reservationId);
+}
+
+const completionDepositNotice=
+  data.store.depositNoticeEnabled&&String(data.store.depositNoticeText||'').trim()
+  ?`<div class="hintBox" style="margin-top:12px"><b>예약금 안내</b><br>${esc(data.store.depositNoticeText)}</div>`
+  :'';
+
+const pushBox=reservationId?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eadfda">
+  <button id="bookingPushEnable" class="secondary full" type="button" style="margin-top:0">🔔 예약 알림 받기</button>
+  <small id="bookingPushHelp" style="display:block;margin-top:8px;color:#8e817b;line-height:1.45">예약 승인·거절 결과를 아이폰 알림으로 받아보세요.</small>
+</div>`:'';
+
+if(savedStatus==='예약대기'){
+  showConfirm({
+    title:'예약 신청이 완료되었습니다',
+    body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 접수되었습니다.<br>매장 확인 후 예약이 확정됩니다.</p>${completionDepositNotice}${pushBox}`,
+    ok:'확인',
+    single:true
+  });
+}else{
+  showConfirm({
+    title:'예약이 완료되었습니다',
+    body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 확정되었습니다.</p>${completionDepositNotice}${pushBox}`,
+    ok:'확인',
+    single:true
+  });
+}
   const pushBtn=document.getElementById('bookingPushEnable');
   if(pushBtn){
     pushBtn.onclick=async()=>{
