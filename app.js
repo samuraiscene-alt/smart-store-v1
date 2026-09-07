@@ -239,6 +239,47 @@ const completionDepositNotice=
   ?`<div class="hintBox" style="margin-top:12px"><b>예약금 안내</b><br>${esc(data.store.depositNoticeText)}</div>`
   :'';
 
+const deadlineHours=Math.max(0,Number(data.store.customerCancelDeadlineHours||24));
+const bookingTimeKst=new Date(`${booking.date}T${booking.time}:00+09:00`);
+const cancelDeadlineMs=bookingTimeKst.getTime()-(deadlineHours*60*60*1000);
+
+const canCancelNow=Boolean(
+  data.store.customerCancelEnabled &&
+  reservationId &&
+  cancelToken &&
+  Date.now()<=cancelDeadlineMs
+);
+
+const lateCancelText=
+  data.store.lateCancelNoticeEnabled&&String(data.store.lateCancelNoticeText||'').trim()
+  ?data.store.lateCancelNoticeText
+  :'취소 가능 시간이 지났습니다. 매장으로 문의해주세요.';
+
+const storePhone=String(data.store.phone||'');
+const storePhoneTel=storePhone.replace(/[^\d+]/g,'');
+const cancelDeadlineLabel=deadlineHours===0
+  ?'예약 시작 전까지 직접 취소할 수 있습니다.'
+  :`예약 ${deadlineHours}시간 전까지 직접 취소할 수 있습니다.`;
+
+let cancelBox='';
+
+if(data.store.customerCancelEnabled&&reservationId&&cancelToken){
+  if(canCancelNow){
+    cancelBox=`
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #eadfda">
+        <button id="bookingCancel" class="secondary full" type="button" style="margin-top:0">예약 취소</button>
+        <small style="display:block;margin-top:8px;color:#8e817b;line-height:1.45">${cancelDeadlineLabel}</small>
+      </div>`;
+  }else{
+    cancelBox=`
+      <div class="hintBox" style="margin-top:12px">
+        <b>예약 취소 안내</b><br>
+        ${esc(lateCancelText)}
+        ${storePhone?`<br><a href="tel:${storePhoneTel}">매장 문의 ${esc(storePhone)}</a>`:''}
+      </div>`;
+  }
+}
+
 const pushBox=reservationId?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eadfda">
   <button id="bookingPushEnable" class="secondary full" type="button" style="margin-top:0">🔔 예약 알림 받기</button>
   <small id="bookingPushHelp" style="display:block;margin-top:8px;color:#8e817b;line-height:1.45">예약 승인·거절 결과를 아이폰 알림으로 받아보세요.</small>
@@ -247,17 +288,70 @@ const pushBox=reservationId?`<div style="margin-top:16px;padding-top:14px;border
 if(savedStatus==='예약대기'){
   showConfirm({
     title:'예약 신청이 완료되었습니다',
-    body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 접수되었습니다.<br>매장 확인 후 예약이 확정됩니다.</p>${completionDepositNotice}${pushBox}`,
+    body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 접수되었습니다.<br>매장 확인 후 예약이 확정됩니다.</p>${completionDepositNotice}${cancelBox}${pushBox}`,
     ok:'확인',
     single:true
   });
 }else{
   showConfirm({
     title:'예약이 완료되었습니다',
-    body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 확정되었습니다.</p>${completionDepositNotice}${pushBox}`,
+    body:`<p><b>${formatDate(booking.date)} ${booking.time}</b><br>${esc(svc.name)} 예약이 확정되었습니다.</p>${completionDepositNotice}${cancelBox}${pushBox}`,
     ok:'확인',
     single:true
   });
+}
+
+const cancelBtn=document.getElementById('bookingCancel');
+
+if(cancelBtn){
+  cancelBtn.onclick=async()=>{
+    if(!confirm('이 예약을 취소하시겠습니까?'))return;
+
+    cancelBtn.disabled=true;
+
+    const {data:cancelResult,error:cancelError}=await sb.rpc('cancel_public_reservation',{
+      p_reservation_id:reservationId,
+      p_cancel_token:cancelToken
+    });
+
+    if(cancelError){
+      cancelBtn.disabled=false;
+      showConfirm({
+        title:'예약을 취소할 수 없습니다',
+        body:`<p>${esc(cancelError.message||'잠시 후 다시 시도해주세요.')}</p>`,
+        ok:'확인',
+        single:true
+      });
+      return;
+    }
+
+    if(!cancelResult?.ok){
+      const phone=String(cancelResult?.store_phone||data.store.phone||'');
+      const tel=phone.replace(/[^\d+]/g,'');
+
+      showConfirm({
+        title:'예약을 취소할 수 없습니다',
+        body:`<p>${esc(cancelResult?.message||'매장으로 문의해주세요.')}</p>${phone?`<p><a href="tel:${tel}">매장 문의 ${esc(phone)}</a></p>`:''}`,
+        ok:'확인',
+        single:true
+      });
+      return;
+    }
+
+    try{
+      localStorage.removeItem('smartStoreLastReservationId');
+      localStorage.removeItem('smartStoreLastCancelToken');
+    }catch{}
+
+    availabilityCache.delete(booking.date);
+
+    showConfirm({
+      title:'예약이 취소되었습니다',
+      body:'<p>예약이 정상적으로 취소되었습니다.</p>',
+      ok:'확인',
+      single:true
+    });
+  };
 }
   const pushBtn=document.getElementById('bookingPushEnable');
   if(pushBtn){
