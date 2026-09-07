@@ -223,10 +223,14 @@ async function createReservation(name,phone,svc){
   if(customerPhoneInput)customerPhoneInput.value='';
 
   const reservationId=result?.id||null;
+const cancelToken=result?.cancel_token||null;
 const savedStatus=result?.status||'예약확정';
 
 if(reservationId){
-  try{localStorage.setItem('smartStoreLastReservationId',reservationId)}catch{}
+  try{
+    localStorage.setItem('smartStoreLastReservationId',reservationId);
+    if(cancelToken)localStorage.setItem('smartStoreLastCancelToken',cancelToken);
+  }catch{}
   window.SmartStorePush?.sendNewReservation(reservationId);
 }
 
