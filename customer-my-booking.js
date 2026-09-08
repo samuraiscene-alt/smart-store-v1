@@ -1,14 +1,16 @@
-/* Smart Store - customer multi booking viewer + direct cancellation */
+/* Smart Store - customer multi booking + phone verified cross-device lookup */
 (() => {
   const RESERVATION_KEY = 'smartStoreLastReservationId';
   const CANCEL_TOKEN_KEY = 'smartStoreLastCancelToken';
   const HISTORY_KEY = 'smartStoreReservationHistoryV1';
   const TOKEN_MAP_KEY = 'smartStoreReservationCancelTokensV1';
+  const AUTH_STORAGE_KEY = 'smartStoreCustomerPhoneAuthV1';
   const DAYS = ['일','월','화','수','목','금','토'];
 
   let detailSb = null;
   let policyCache = null;
   let currentReservation = null;
+  let pendingPhoneE164 = '';
 
   const esc = (v='') => String(v).replace(/[&<>"']/g, ch => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -32,9 +34,23 @@
 
   function getClient(){
     if(detailSb) return detailSb;
+
     const cfg = window.SMART_STORE_CONFIG;
     if(!cfg || !window.supabase) return null;
-    detailSb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+
+    detailSb = window.supabase.createClient(
+      cfg.supabaseUrl,
+      cfg.supabaseKey,
+      {
+        auth:{
+          storageKey:AUTH_STORAGE_KEY,
+          persistSession:true,
+          autoRefreshToken:true,
+          detectSessionInUrl:false
+        }
+      }
+    );
+
     return detailSb;
   }
 
@@ -43,15 +59,6 @@
       return localStorage.getItem(key) || '';
     }catch{
       return '';
-    }
-  }
-
-  function writeLocal(key, value){
-    try{
-      localStorage.setItem(key, value);
-      return true;
-    }catch{
-      return false;
     }
   }
 
@@ -86,12 +93,17 @@
   }
 
   function setHistory(ids){
-    writeJson(HISTORY_KEY, [...new Set((ids || []).filter(Boolean).map(String))].slice(0,50));
+    writeJson(
+      HISTORY_KEY,
+      [...new Set((ids || []).filter(Boolean).map(String))].slice(0,50)
+    );
   }
 
   function getTokenMap(){
     const value = readJson(TOKEN_MAP_KEY, {});
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value
+      : {};
   }
 
   function setTokenFor(id, token){
@@ -126,6 +138,93 @@
 
     if(token){
       setTokenFor(id, token);
+    }
+  }
+
+  function toE164Kr(raw){
+    let digits = String(raw || '').replace(/\D/g, '');
+
+    if(digits.startsWith('82')){
+      const local = digits.slice(2);
+      if(local.length < 9 || local.length > 11) return '';
+      return `+82${local}`;
+    }
+
+    if(digits.startsWith('0')){
+      digits = digits.slice(1);
+    }
+
+    if(digits.length < 9 || digits.length > 10) return '';
+    return `+82${digits}`;
+  }
+
+  function domesticPhone(raw){
+    let digits = String(raw || '').replace(/\D/g, '');
+
+    if(digits.startsWith('82')){
+      digits = `0${digits.slice(2)}`;
+    }else if(!digits.startsWith('0') && digits.length >= 9){
+      digits = `0${digits}`;
+    }
+
+    return digits;
+  }
+
+  function maskPhone(raw){
+    const d = domesticPhone(raw);
+
+    if(d.length >= 10){
+      return `${d.slice(0,3)}-****-${d.slice(-4)}`;
+    }
+
+    return '인증된 휴대폰';
+  }
+
+  function friendlyAuthError(error){
+    const raw = String(error?.message || error || '').trim();
+    const lower = raw.toLowerCase();
+
+    if(
+      lower.includes('sms') && (
+        lower.includes('provider') ||
+        lower.includes('disabled') ||
+        lower.includes('not enabled') ||
+        lower.includes('unsupported')
+      )
+    ){
+      return '현재 휴대폰 SMS 인증 서비스 설정이 완료되지 않았습니다.';
+    }
+
+    if(
+      lower.includes('rate') ||
+      lower.includes('too many') ||
+      lower.includes('60 seconds')
+    ){
+      return '인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요.';
+    }
+
+    if(
+      lower.includes('expired') ||
+      lower.includes('invalid') ||
+      lower.includes('token')
+    ){
+      return '인증번호가 올바르지 않거나 만료되었습니다. 다시 확인해주세요.';
+    }
+
+    return raw || '휴대폰 인증 중 오류가 발생했습니다.';
+  }
+
+  async function authPhone(){
+    const client = getClient();
+    if(!client) return '';
+
+    try{
+      const {data, error} = await client.auth.getSession();
+      if(error) throw error;
+      return String(data?.session?.user?.phone || '');
+    }catch(e){
+      console.warn('customer auth session read failed', e);
+      return '';
     }
   }
 
@@ -185,84 +284,92 @@
       }
       #customerMyBookingModal .cancelButton:disabled{opacity:.55}
 
-      #customerMyBookingModal .list{
-        display:grid;
-        gap:10px;
-        margin-top:4px
-      }
+      #customerMyBookingModal .list{display:grid;gap:10px;margin-top:4px}
       #customerMyBookingModal .bookingItem{
-        width:100%;
-        border:1px solid var(--line);
-        background:#fffdfa;
-        border-radius:16px;
-        padding:14px;
-        color:var(--ink);
-        text-align:left;
-        display:grid;
-        grid-template-columns:1fr auto;
-        gap:10px;
-        align-items:center
+        width:100%;border:1px solid var(--line);background:#fffdfa;border-radius:16px;padding:14px;
+        color:var(--ink);text-align:left;display:grid;grid-template-columns:1fr auto;
+        gap:10px;align-items:center
       }
       #customerMyBookingModal .bookingItem .main{min-width:0}
       #customerMyBookingModal .bookingItem .top{
-        display:flex;
-        align-items:center;
-        gap:8px;
-        flex-wrap:wrap
+        display:flex;align-items:center;gap:8px;flex-wrap:wrap
       }
       #customerMyBookingModal .bookingItem .badge{
-        display:inline-flex;
-        padding:4px 8px;
-        border-radius:999px;
-        background:var(--soft);
-        color:var(--dark);
-        font-size:11px;
-        font-weight:800
+        display:inline-flex;padding:4px 8px;border-radius:999px;background:var(--soft);
+        color:var(--dark);font-size:11px;font-weight:800
       }
       #customerMyBookingModal .bookingItem b{
-        display:block;
-        margin-top:7px;
-        font-size:15px;
-        line-height:1.35
+        display:block;margin-top:7px;font-size:15px;line-height:1.35
       }
       #customerMyBookingModal .bookingItem small{
-        display:block;
-        margin-top:4px;
-        color:var(--muted);
-        font-size:12px;
-        line-height:1.45
+        display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.45
       }
       #customerMyBookingModal .bookingItem .arr{
-        color:var(--accent);
-        font-size:22px;
-        font-weight:800
+        color:var(--accent);font-size:22px;font-weight:800
       }
       #customerMyBookingModal .sectionLabel{
-        margin:4px 0 9px;
-        font-size:12px;
-        font-weight:900;
-        color:var(--accent);
-        letter-spacing:.06em
+        margin:4px 0 9px;font-size:12px;font-weight:900;color:var(--accent);letter-spacing:.06em
       }
       #customerMyBookingModal .backToList{
-        display:inline-flex;
-        margin:0 0 12px;
-        padding:0;
-        border:0;
-        background:none;
-        color:var(--accent);
-        font-weight:800
+        display:inline-flex;margin:0 0 12px;padding:0;border:0;background:none;
+        color:var(--accent);font-weight:800
+      }
+
+      #customerMyBookingModal .authCard{
+        margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:16px;background:#fffdfa
+      }
+      #customerMyBookingModal .authCard b{
+        display:block;font-size:13px;color:var(--ink)
+      }
+      #customerMyBookingModal .authCard p{
+        margin:6px 0 12px;color:var(--muted);font-size:12px;line-height:1.55
+      }
+      #customerMyBookingModal .authCard button{width:100%}
+      #customerMyBookingModal .verifiedBar{
+        margin:0 0 12px;padding:10px 12px;border-radius:14px;background:#f7efeb;
+        display:flex;align-items:center;justify-content:space-between;gap:10px
+      }
+      #customerMyBookingModal .verifiedBar span{
+        color:var(--dark);font-size:12px;font-weight:800
+      }
+      #customerMyBookingModal .verifiedBar button{
+        border:0;background:none;color:var(--accent);padding:4px;font-weight:800;font-size:12px
+      }
+
+      #customerMyBookingModal .authIntro{
+        margin:0 0 14px;color:var(--muted);font-size:13px;line-height:1.6
+      }
+      #customerMyBookingModal .authField{
+        display:block;margin-top:12px
+      }
+      #customerMyBookingModal .authField span{
+        display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:800
+      }
+      #customerMyBookingModal .authField input{
+        width:100%;box-sizing:border-box;border:1px solid var(--line);background:#fffdfa;
+        color:var(--ink);border-radius:14px;padding:13px 14px;font:inherit;font-size:16px;outline:none
+      }
+      #customerMyBookingModal .authField input:focus{border-color:var(--accent)}
+      #customerMyBookingModal .authButtons{
+        display:grid;gap:9px;margin-top:14px
+      }
+      #customerMyBookingModal .authMessage{
+        margin-top:12px;padding:11px 12px;border-radius:12px;background:#fbf5f2;
+        color:var(--muted);font-size:12px;line-height:1.55
       }
     `;
+
     document.head.appendChild(s);
   }
 
   function ensureButton(){
     styles();
+
     const quick = document.querySelector('.quickGrid');
     if(!quick) return false;
 
     let b = document.getElementById('customerMyBookingOpen');
+
     if(!b){
       b = document.createElement('button');
       b.id = 'customerMyBookingOpen';
@@ -272,11 +379,12 @@
           <span class="ico">◷</span>
           <span>
             <b>내 예약 확인</b>
-            <small>이 기기에서 예약한 내역을 확인합니다.</small>
+            <small>이 기기 또는 휴대폰 인증으로 내 예약을 확인합니다.</small>
           </span>
         </span>
         <span class="arr">›</span>
       `;
+
       quick.insertAdjacentElement('afterend', b);
     }
 
@@ -299,7 +407,7 @@
         <div id="customerMyBookingBody">
           <div class="empty">예약 정보를 불러오는 중입니다.</div>
         </div>
-        <p id="customerMyBookingHint" class="hint">이 기기에서 저장된 예약 내역을 보여줍니다.</p>
+        <p id="customerMyBookingHint" class="hint">내 예약을 확인합니다.</p>
         <div id="customerMyBookingCancelInfo"></div>
         <div id="customerMyBookingActions" class="actions">
           <button id="customerMyBookingClose" class="primary" type="button">닫기</button>
@@ -323,6 +431,7 @@
 
   function close(){
     currentReservation = null;
+    pendingPhoneE164 = '';
     document.getElementById('customerMyBookingModal')?.classList.add('hidden');
   }
 
@@ -371,7 +480,7 @@
     }
   }
 
-  function cancelState(r, policy, token){
+  function cancelState(r, policy, token, verified=false){
     const active = r && ['예약대기','예약확정'].includes(r.status);
 
     if(!active){
@@ -385,10 +494,10 @@
       };
     }
 
-    if(!token){
+    if(!token && !verified){
       return {
         showCancel:false,
-        reason:'이 예약의 직접 취소 정보를 이 기기에서 찾을 수 없습니다. 매장으로 문의해주세요.'
+        reason:'이 예약의 직접 취소 정보를 이 기기에서 찾을 수 없습니다. 휴대폰 인증 후 다시 확인하거나 매장으로 문의해주세요.'
       };
     }
 
@@ -463,7 +572,7 @@
     const a = document.getElementById('customerMyBookingActions');
     if(!a) return;
 
-    if(mode === 'list'){
+    if(mode === 'list' || mode === 'auth'){
       a.className = 'actions';
       a.innerHTML = `<button id="customerMyBookingClose" class="primary" type="button">닫기</button>`;
       bindClose();
@@ -501,10 +610,13 @@
           return;
         }
 
-        if(typeof openBooking === 'function'){
-          openBooking(r.service_id ? {serviceId:r.service_id} : {});
-        }
+        try{
+          if(typeof openBooking === 'function'){
+            openBooking(r.service_id ? {serviceId:r.service_id} : {});
+          }
+        }catch{}
       };
+
       return;
     }
 
@@ -520,8 +632,13 @@
 
   function sortReservations(rows){
     return [...rows].sort((a,b) => {
-      const aActive = ['예약대기','예약확정'].includes(a?.status) && bookingTimeMs(a) >= Date.now();
-      const bActive = ['예약대기','예약확정'].includes(b?.status) && bookingTimeMs(b) >= Date.now();
+      const aActive =
+        ['예약대기','예약확정'].includes(a?.status) &&
+        bookingTimeMs(a) >= Date.now();
+
+      const bActive =
+        ['예약대기','예약확정'].includes(b?.status) &&
+        bookingTimeMs(b) >= Date.now();
 
       if(aActive !== bActive) return aActive ? -1 : 1;
 
@@ -533,56 +650,104 @@
     });
   }
 
-  function renderList(rows){
+  function renderAuthCard(phone){
+    if(phone){
+      return `
+        <div class="verifiedBar">
+          <span>✓ 휴대폰 인증 · ${esc(maskPhone(phone))}</span>
+          <button id="customerAuthLogout" type="button">인증 해제</button>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="authCard">
+        <b>다른 휴대폰에서 예약했나요?</b>
+        <p>예약할 때 입력한 휴대폰 번호를 인증하면 다른 기기에서 만든 예약도 불러올 수 있습니다.</p>
+        <button id="customerAuthStart" class="secondary" type="button">휴대폰 인증으로 불러오기</button>
+      </div>
+    `;
+  }
+
+  async function bindAuthControls(){
+    const start = document.getElementById('customerAuthStart');
+    if(start) start.onclick = renderAuthView;
+
+    const logout = document.getElementById('customerAuthLogout');
+
+    if(logout){
+      logout.onclick = async () => {
+        const client = getClient();
+
+        try{
+          logout.disabled = true;
+          if(client) await client.auth.signOut();
+        }catch(e){
+          console.warn('customer auth signout failed', e);
+        }finally{
+          pendingPhoneE164 = '';
+          await loadList(false);
+        }
+      };
+    }
+  }
+
+  async function renderList(rows, phone=''){
     currentReservation = null;
 
     const body = document.getElementById('customerMyBookingBody');
     const info = document.getElementById('customerMyBookingCancelInfo');
 
     if(info) info.innerHTML = '';
-
     if(!body) return;
-
-    if(!rows.length){
-      body.innerHTML = `
-        <div class="empty">
-          이 기기에서 확인할 예약 정보가 없습니다.<br>
-          새 예약을 완료하면 여기에서 확인할 수 있습니다.
-        </div>
-      `;
-      setHint('이 기기에서 저장된 예약 내역을 보여줍니다.');
-      renderActions(null, {showCancel:false, reason:''}, '', {}, 'list');
-      return;
-    }
 
     const sorted = sortReservations(rows);
 
-    body.innerHTML = `
-      <div class="sectionLabel">예약 ${sorted.length}건</div>
-      <div class="list">
-        ${sorted.map(r => `
-          <button class="bookingItem" type="button" data-booking-id="${esc(r.id)}">
-            <span class="main">
-              <span class="top">
-                <span class="badge">${esc(r.status || '예약')}</span>
+    if(!sorted.length){
+      body.innerHTML = `
+        ${renderAuthCard(phone)}
+        <div class="empty">
+          확인할 예약 정보가 없습니다.<br>
+          이 기기에서 새 예약을 하거나 휴대폰 인증으로 기존 예약을 불러올 수 있습니다.
+        </div>
+      `;
+    }else{
+      body.innerHTML = `
+        ${renderAuthCard(phone)}
+        <div class="sectionLabel">예약 ${sorted.length}건</div>
+        <div class="list">
+          ${sorted.map(r => `
+            <button class="bookingItem" type="button" data-booking-id="${esc(r.id)}">
+              <span class="main">
+                <span class="top">
+                  <span class="badge">${esc(r.status || '예약')}</span>
+                  ${r.__verified ? '<span class="badge">본인인증</span>' : ''}
+                </span>
+                <b>${esc(kdate(r.reservation_date))} · ${esc(String(r.reservation_time || '-').slice(0,5))}</b>
+                <small>${esc(r.service_name || '-')} · ${esc(r.staff_name || '담당없음')}</small>
               </span>
-              <b>${esc(kdate(r.reservation_date))} · ${esc(String(r.reservation_time || '-').slice(0,5))}</b>
-              <small>${esc(r.service_name || '-')} · ${esc(r.staff_name || '담당없음')}</small>
-            </span>
-            <span class="arr">›</span>
-          </button>
-        `).join('')}
-      </div>
-    `;
+              <span class="arr">›</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
 
-    body.querySelectorAll('[data-booking-id]').forEach(btn => {
-      btn.onclick = () => {
-        const r = sorted.find(x => String(x.id) === btn.dataset.bookingId);
-        if(r) renderDetail(r);
-      };
-    });
+      body.querySelectorAll('[data-booking-id]').forEach(btn => {
+        btn.onclick = () => {
+          const r = sorted.find(x => String(x.id) === btn.dataset.bookingId);
+          if(r) renderDetail(r);
+        };
+      });
+    }
 
-    setHint('예약을 누르면 상세내용과 취소 가능 여부를 확인할 수 있습니다.');
+    await bindAuthControls();
+
+    setHint(
+      phone
+        ? '휴대폰 인증으로 다른 기기에서 만든 예약도 함께 확인할 수 있습니다.'
+        : '이 기기에 저장된 예약을 보여줍니다. 다른 기기 예약은 휴대폰 인증으로 불러올 수 있습니다.'
+    );
+
     renderActions(null, {showCancel:false, reason:''}, '', {}, 'list');
   }
 
@@ -611,16 +776,220 @@
 
     const token = getTokenFor(r.id);
     const policy = await getPolicy();
-    const state = cancelState(r, policy, token);
+    const state = cancelState(r, policy, token, r.__verified === true);
 
     renderCancelInfo(state, policy);
     renderActions(r, state, token, policy, 'detail');
-    setHint('이 기기에서 저장된 예약입니다.');
+
+    setHint(
+      r.__verified
+        ? '휴대폰 본인인증으로 확인한 예약입니다.'
+        : '이 기기에서 저장된 예약입니다.'
+    );
+  }
+
+  function renderAuthView(){
+    currentReservation = null;
+    pendingPhoneE164 = '';
+
+    const body = document.getElementById('customerMyBookingBody');
+    const info = document.getElementById('customerMyBookingCancelInfo');
+
+    if(info) info.innerHTML = '';
+    if(!body) return;
+
+    body.innerHTML = `
+      <button id="customerAuthBack" class="backToList" type="button">‹ 예약 목록</button>
+      <p class="authIntro">
+        예약할 때 입력한 휴대폰 번호로 인증번호를 받아주세요.
+        인증이 완료되면 같은 번호로 예약한 내역을 이 기기에서도 확인할 수 있습니다.
+      </p>
+
+      <label class="authField">
+        <span>휴대폰 번호</span>
+        <input
+          id="customerAuthPhone"
+          inputmode="tel"
+          autocomplete="tel"
+          placeholder="010-0000-0000"
+        />
+      </label>
+
+      <div id="customerAuthOtpArea"></div>
+      <div id="customerAuthMessage"></div>
+
+      <div class="authButtons">
+        <button id="customerAuthSend" class="primary" type="button">인증번호 받기</button>
+      </div>
+    `;
+
+    document.getElementById('customerAuthBack').onclick = () => loadList(false);
+    document.getElementById('customerAuthSend').onclick = sendOtp;
+
+    setHint('SMS 인증번호를 이용한 본인확인입니다.');
+    renderActions(null, {showCancel:false, reason:''}, '', {}, 'auth');
+  }
+
+  function setAuthMessage(message, error=false){
+    const box = document.getElementById('customerAuthMessage');
+    if(!box) return;
+
+    if(!message){
+      box.innerHTML = '';
+      return;
+    }
+
+    box.innerHTML = `
+      <div class="authMessage"${error ? ' style="color:#9b504b"' : ''}>
+        ${esc(message)}
+      </div>
+    `;
+  }
+
+  async function sendOtp(){
+    const input = document.getElementById('customerAuthPhone');
+    const send = document.getElementById('customerAuthSend');
+    const e164 = toE164Kr(input?.value || '');
+
+    if(!e164){
+      setAuthMessage('올바른 휴대폰 번호를 입력해주세요.', true);
+      return;
+    }
+
+    const client = getClient();
+
+    if(!client){
+      setAuthMessage('휴대폰 인증 기능을 준비하지 못했습니다.', true);
+      return;
+    }
+
+    if(send){
+      send.disabled = true;
+      send.textContent = '발송 중...';
+    }
+
+    setAuthMessage('');
+
+    try{
+      const {error} = await client.auth.signInWithOtp({
+        phone:e164
+      });
+
+      if(error) throw error;
+
+      pendingPhoneE164 = e164;
+
+      const area = document.getElementById('customerAuthOtpArea');
+
+      if(area){
+        area.innerHTML = `
+          <label class="authField">
+            <span>인증번호 6자리</span>
+            <input
+              id="customerAuthOtp"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="6"
+              placeholder="123456"
+            />
+          </label>
+        `;
+      }
+
+      if(send){
+        send.textContent = '인증번호 다시 받기';
+      }
+
+      const actions = document.querySelector('#customerMyBookingBody .authButtons');
+
+      if(actions && !document.getElementById('customerAuthVerify')){
+        actions.insertAdjacentHTML(
+          'beforeend',
+          '<button id="customerAuthVerify" class="secondary" type="button">인증 확인</button>'
+        );
+
+        document.getElementById('customerAuthVerify').onclick = verifyOtp;
+      }
+
+      setAuthMessage('문자로 받은 6자리 인증번호를 입력해주세요.');
+
+      setTimeout(() => {
+        document.getElementById('customerAuthOtp')?.focus();
+      }, 100);
+    }catch(e){
+      console.error('customer phone OTP send failed', e);
+      setAuthMessage(friendlyAuthError(e), true);
+    }finally{
+      if(send){
+        send.disabled = false;
+        if(send.textContent === '발송 중...'){
+          send.textContent = '인증번호 받기';
+        }
+      }
+    }
+  }
+
+  async function verifyOtp(){
+    const verify = document.getElementById('customerAuthVerify');
+    const token = String(document.getElementById('customerAuthOtp')?.value || '')
+      .replace(/\D/g, '');
+
+    if(!pendingPhoneE164){
+      setAuthMessage('먼저 인증번호를 받아주세요.', true);
+      return;
+    }
+
+    if(token.length !== 6){
+      setAuthMessage('인증번호 6자리를 입력해주세요.', true);
+      return;
+    }
+
+    const client = getClient();
+
+    if(!client){
+      setAuthMessage('휴대폰 인증 기능을 준비하지 못했습니다.', true);
+      return;
+    }
+
+    if(verify){
+      verify.disabled = true;
+      verify.textContent = '확인 중...';
+    }
+
+    try{
+      const {data, error} = await client.auth.verifyOtp({
+        phone:pendingPhoneE164,
+        token,
+        type:'sms'
+      });
+
+      if(error) throw error;
+
+      if(!data?.session){
+        throw new Error('휴대폰 인증 세션을 만들지 못했습니다.');
+      }
+
+      pendingPhoneE164 = '';
+      setAuthMessage('휴대폰 인증이 완료되었습니다.');
+
+      await loadList(true);
+    }catch(e){
+      console.error('customer phone OTP verify failed', e);
+      setAuthMessage(friendlyAuthError(e), true);
+    }finally{
+      if(document.body.contains(verify)){
+        verify.disabled = false;
+        verify.textContent = '인증 확인';
+      }
+    }
   }
 
   async function fetchReservation(id){
     const client = getClient();
-    if(!client) throw new Error('예약 조회 기능을 준비하지 못했습니다.');
+
+    if(!client){
+      throw new Error('예약 조회 기능을 준비하지 못했습니다.');
+    }
 
     const {data:r, error} = await client.rpc('public_reservation_detail', {
       p_reservation_id:id
@@ -634,7 +1003,8 @@
     const results = await Promise.all(
       ids.map(async id => {
         try{
-          return await fetchReservation(id);
+          const r = await fetchReservation(id);
+          return r ? {...r, __local:true} : null;
         }catch(e){
           console.warn('reservation detail load failed', id, e);
           return null;
@@ -645,8 +1015,72 @@
     return results.filter(Boolean);
   }
 
+  async function fetchVerifiedReservations(){
+    const client = getClient();
+    const cfg = window.SMART_STORE_CONFIG;
+    const phone = await authPhone();
+
+    if(!client || !cfg?.storeSlug || !phone){
+      return {phone:'', rows:[]};
+    }
+
+    try{
+      const {data:rows, error} = await client.rpc('public_my_reservations', {
+        p_slug:cfg.storeSlug
+      });
+
+      if(error) throw error;
+
+      return {
+        phone,
+        rows:(Array.isArray(rows) ? rows : []).map(r => ({
+          ...r,
+          __verified:true
+        }))
+      };
+    }catch(e){
+      console.error('verified reservations load failed', e);
+
+      return {
+        phone,
+        rows:[],
+        error:e
+      };
+    }
+  }
+
+  function mergeReservations(localRows, verifiedRows){
+    const map = new Map();
+
+    for(const r of localRows || []){
+      if(!r?.id) continue;
+      map.set(String(r.id), {...r, __local:true});
+    }
+
+    for(const r of verifiedRows || []){
+      if(!r?.id) continue;
+
+      const id = String(r.id);
+      const existing = map.get(id) || {};
+
+      map.set(id, {
+        ...existing,
+        ...r,
+        __local:existing.__local === true,
+        __verified:true
+      });
+    }
+
+    return [...map.values()];
+  }
+
   async function cancelReservation(r, token, policy, button){
-    if(!r?.id || !token) return;
+    if(!r?.id) return;
+
+    if(!token && !r.__verified){
+      window.alert('이 예약을 취소하려면 휴대폰 인증이 필요합니다.');
+      return;
+    }
 
     if(!window.confirm('이 예약을 취소하시겠습니까?')) return;
 
@@ -661,10 +1095,25 @@
     button.textContent = '취소 중...';
 
     try{
-      const {data:result, error} = await client.rpc('cancel_public_reservation', {
-        p_reservation_id:r.id,
-        p_cancel_token:token
-      });
+      let result;
+      let error;
+
+      if(token){
+        const response = await client.rpc('cancel_public_reservation', {
+          p_reservation_id:r.id,
+          p_cancel_token:token
+        });
+
+        result = response.data;
+        error = response.error;
+      }else{
+        const response = await client.rpc('cancel_authenticated_reservation', {
+          p_reservation_id:r.id
+        });
+
+        result = response.data;
+        error = response.error;
+      }
 
       if(error) throw error;
 
@@ -677,14 +1126,24 @@
         policyCache = null;
 
         const fresh = await fetchReservation(r.id);
-        if(fresh) await renderDetail(fresh);
+
+        if(fresh){
+          await renderDetail({
+            ...fresh,
+            __verified:r.__verified === true,
+            __local:r.__local === true
+          });
+        }
+
         return;
       }
 
-      removeTokenFor(r.id);
+      if(token){
+        removeTokenFor(r.id);
 
-      if(String(readLocal(RESERVATION_KEY)) === String(r.id)){
-        removeLocal(CANCEL_TOKEN_KEY);
+        if(String(readLocal(RESERVATION_KEY)) === String(r.id)){
+          removeLocal(CANCEL_TOKEN_KEY);
+        }
       }
 
       window.alert('예약이 정상적으로 취소되었습니다.');
@@ -692,7 +1151,11 @@
       const fresh = await fetchReservation(r.id);
 
       if(fresh){
-        await renderDetail(fresh);
+        await renderDetail({
+          ...fresh,
+          __verified:r.__verified === true,
+          __local:r.__local === true
+        });
       }else{
         await loadList(false);
       }
@@ -716,25 +1179,31 @@
     if(showLoading && body){
       body.innerHTML = '<div class="empty">예약 정보를 불러오는 중입니다.</div>';
     }
+
     if(info) info.innerHTML = '';
 
     const ids = getHistory();
 
-    if(!ids.length){
-      renderList([]);
-      return;
-    }
-
     try{
       policyCache = null;
 
-      const rows = await fetchReservations(ids);
+      const [localRows, verified] = await Promise.all([
+        ids.length ? fetchReservations(ids) : Promise.resolve([]),
+        fetchVerifiedReservations()
+      ]);
 
-      // 조회 가능한 예약만 목록에 유지한다.
-      const validIds = rows.map(r => String(r.id));
-      setHistory(ids.filter(id => validIds.includes(String(id))));
+      if(ids.length){
+        const validLocalIds = localRows.map(r => String(r.id));
+        setHistory(ids.filter(id => validLocalIds.includes(String(id))));
+      }
 
-      renderList(rows);
+      if(verified.error){
+        console.warn('phone verified list unavailable', verified.error);
+      }
+
+      const rows = mergeReservations(localRows, verified.rows);
+
+      await renderList(rows, verified.phone);
     }catch(e){
       console.error('my booking list load error', e);
 
