@@ -1,11 +1,14 @@
-/* Smart Store - customer recent booking viewer + direct cancellation */
+/* Smart Store - customer multi booking viewer + direct cancellation */
 (() => {
   const RESERVATION_KEY = 'smartStoreLastReservationId';
   const CANCEL_TOKEN_KEY = 'smartStoreLastCancelToken';
+  const HISTORY_KEY = 'smartStoreReservationHistoryV1';
+  const TOKEN_MAP_KEY = 'smartStoreReservationCancelTokensV1';
   const DAYS = ['일','월','화','수','목','금','토'];
 
   let detailSb = null;
   let policyCache = null;
+  let currentReservation = null;
 
   const esc = (v='') => String(v).replace(/[&<>"']/g, ch => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -20,12 +23,110 @@
       : `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${DAYS[d.getDay()]}요일`;
   };
 
+  function bookingTimeMs(r){
+    const date = String(r?.reservation_date || '');
+    const time = String(r?.reservation_time || '').slice(0,5);
+    if(!date || !time) return NaN;
+    return new Date(`${date}T${time}:00+09:00`).getTime();
+  }
+
   function getClient(){
     if(detailSb) return detailSb;
     const cfg = window.SMART_STORE_CONFIG;
     if(!cfg || !window.supabase) return null;
     detailSb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
     return detailSb;
+  }
+
+  function readLocal(key){
+    try{
+      return localStorage.getItem(key) || '';
+    }catch{
+      return '';
+    }
+  }
+
+  function writeLocal(key, value){
+    try{
+      localStorage.setItem(key, value);
+      return true;
+    }catch{
+      return false;
+    }
+  }
+
+  function removeLocal(key){
+    try{
+      localStorage.removeItem(key);
+    }catch{}
+  }
+
+  function readJson(key, fallback){
+    try{
+      const raw = localStorage.getItem(key);
+      if(!raw) return fallback;
+      const parsed = JSON.parse(raw);
+      return parsed ?? fallback;
+    }catch{
+      return fallback;
+    }
+  }
+
+  function writeJson(key, value){
+    try{
+      localStorage.setItem(key, JSON.stringify(value));
+    }catch{}
+  }
+
+  function getHistory(){
+    const value = readJson(HISTORY_KEY, []);
+    return Array.isArray(value)
+      ? [...new Set(value.filter(Boolean).map(String))]
+      : [];
+  }
+
+  function setHistory(ids){
+    writeJson(HISTORY_KEY, [...new Set((ids || []).filter(Boolean).map(String))].slice(0,50));
+  }
+
+  function getTokenMap(){
+    const value = readJson(TOKEN_MAP_KEY, {});
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  }
+
+  function setTokenFor(id, token){
+    if(!id || !token) return;
+    const map = getTokenMap();
+    map[String(id)] = String(token);
+    writeJson(TOKEN_MAP_KEY, map);
+  }
+
+  function getTokenFor(id){
+    if(!id) return '';
+    return String(getTokenMap()[String(id)] || '');
+  }
+
+  function removeTokenFor(id){
+    if(!id) return;
+    const map = getTokenMap();
+    delete map[String(id)];
+    writeJson(TOKEN_MAP_KEY, map);
+  }
+
+  function syncLegacyLatest(){
+    const id = readLocal(RESERVATION_KEY);
+    if(!id) return;
+
+    const token = readLocal(CANCEL_TOKEN_KEY);
+    const ids = getHistory();
+
+    if(ids[0] !== id){
+      setHistory([id, ...ids.filter(x => x !== id)]);
+    }
+
+    if(token){
+      setTokenFor(id, token);
+    }
   }
 
   function styles(){
@@ -53,7 +154,12 @@
       #customerMyBookingOpen .arr{flex:0 0 auto;color:var(--accent);font-size:20px;font-weight:800}
 
       #customerMyBookingModal{z-index:100002}
-      #customerMyBookingModal .box{width:min(92vw,440px)}
+      #customerMyBookingModal .box{
+        width:min(92vw,440px);
+        max-height:min(82dvh,760px);
+        overflow:auto;
+        -webkit-overflow-scrolling:touch
+      }
       #customerMyBookingModal .status{
         display:inline-flex;margin:2px 0 14px;padding:6px 10px;border-radius:999px;
         background:var(--soft);color:var(--dark);font-size:12px;font-weight:800
@@ -78,6 +184,75 @@
         border:1px solid #d9aaa3;background:#fff8f6;color:#a65f59
       }
       #customerMyBookingModal .cancelButton:disabled{opacity:.55}
+
+      #customerMyBookingModal .list{
+        display:grid;
+        gap:10px;
+        margin-top:4px
+      }
+      #customerMyBookingModal .bookingItem{
+        width:100%;
+        border:1px solid var(--line);
+        background:#fffdfa;
+        border-radius:16px;
+        padding:14px;
+        color:var(--ink);
+        text-align:left;
+        display:grid;
+        grid-template-columns:1fr auto;
+        gap:10px;
+        align-items:center
+      }
+      #customerMyBookingModal .bookingItem .main{min-width:0}
+      #customerMyBookingModal .bookingItem .top{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        flex-wrap:wrap
+      }
+      #customerMyBookingModal .bookingItem .badge{
+        display:inline-flex;
+        padding:4px 8px;
+        border-radius:999px;
+        background:var(--soft);
+        color:var(--dark);
+        font-size:11px;
+        font-weight:800
+      }
+      #customerMyBookingModal .bookingItem b{
+        display:block;
+        margin-top:7px;
+        font-size:15px;
+        line-height:1.35
+      }
+      #customerMyBookingModal .bookingItem small{
+        display:block;
+        margin-top:4px;
+        color:var(--muted);
+        font-size:12px;
+        line-height:1.45
+      }
+      #customerMyBookingModal .bookingItem .arr{
+        color:var(--accent);
+        font-size:22px;
+        font-weight:800
+      }
+      #customerMyBookingModal .sectionLabel{
+        margin:4px 0 9px;
+        font-size:12px;
+        font-weight:900;
+        color:var(--accent);
+        letter-spacing:.06em
+      }
+      #customerMyBookingModal .backToList{
+        display:inline-flex;
+        margin:0 0 12px;
+        padding:0;
+        border:0;
+        background:none;
+        color:var(--accent);
+        font-weight:800
+      }
     `;
     document.head.appendChild(s);
   }
@@ -97,13 +272,14 @@
           <span class="ico">◷</span>
           <span>
             <b>내 예약 확인</b>
-            <small>이 기기에서 예약한 최근 예약을 확인합니다.</small>
+            <small>이 기기에서 예약한 내역을 확인합니다.</small>
           </span>
         </span>
         <span class="arr">›</span>
       `;
       quick.insertAdjacentElement('afterend', b);
     }
+
     b.onclick = open;
     return true;
   }
@@ -123,7 +299,7 @@
         <div id="customerMyBookingBody">
           <div class="empty">예약 정보를 불러오는 중입니다.</div>
         </div>
-        <p class="hint">현재는 이 기기에서 만든 가장 최근 예약을 보여줍니다.</p>
+        <p id="customerMyBookingHint" class="hint">이 기기에서 저장된 예약 내역을 보여줍니다.</p>
         <div id="customerMyBookingCancelInfo"></div>
         <div id="customerMyBookingActions" class="actions">
           <button id="customerMyBookingClose" class="primary" type="button">닫기</button>
@@ -146,21 +322,8 @@
   }
 
   function close(){
+    currentReservation = null;
     document.getElementById('customerMyBookingModal')?.classList.add('hidden');
-  }
-
-  function readLocal(key){
-    try{
-      return localStorage.getItem(key) || '';
-    }catch{
-      return '';
-    }
-  }
-
-  function removeLocal(key){
-    try{
-      localStorage.removeItem(key);
-    }catch{}
   }
 
   async function getPolicy(force=false){
@@ -206,13 +369,6 @@
       policyCache = fallback;
       return policyCache;
     }
-  }
-
-  function bookingTimeMs(r){
-    const date = String(r?.reservation_date || '');
-    const time = String(r?.reservation_time || '').slice(0,5);
-    if(!date || !time) return NaN;
-    return new Date(`${date}T${time}:00+09:00`).getTime();
   }
 
   function cancelState(r, policy, token){
@@ -303,9 +459,16 @@
     box.innerHTML = '';
   }
 
-  function renderActions(r, state, token, policy){
+  function renderActions(r, state, token, policy, mode='detail'){
     const a = document.getElementById('customerMyBookingActions');
     if(!a) return;
+
+    if(mode === 'list'){
+      a.className = 'actions';
+      a.innerHTML = `<button id="customerMyBookingClose" class="primary" type="button">닫기</button>`;
+      bindClose();
+      return;
+    }
 
     const rebook = r && ['취소','예약거절','방문완료','노쇼'].includes(r.status);
 
@@ -332,8 +495,14 @@
 
       document.getElementById('customerMyBookingRebook').onclick = () => {
         close();
+
         if(typeof window.openBooking === 'function'){
           window.openBooking(r.service_id ? {serviceId:r.service_id} : {});
+          return;
+        }
+
+        if(typeof openBooking === 'function'){
+          openBooking(r.service_id ? {serviceId:r.service_id} : {});
         }
       };
       return;
@@ -344,40 +513,109 @@
     bindClose();
   }
 
-  async function render(r){
+  function setHint(text){
+    const hint = document.getElementById('customerMyBookingHint');
+    if(hint) hint.textContent = text || '';
+  }
+
+  function sortReservations(rows){
+    return [...rows].sort((a,b) => {
+      const aActive = ['예약대기','예약확정'].includes(a?.status) && bookingTimeMs(a) >= Date.now();
+      const bActive = ['예약대기','예약확정'].includes(b?.status) && bookingTimeMs(b) >= Date.now();
+
+      if(aActive !== bActive) return aActive ? -1 : 1;
+
+      const at = bookingTimeMs(a);
+      const bt = bookingTimeMs(b);
+
+      if(aActive && bActive) return at - bt;
+      return bt - at;
+    });
+  }
+
+  function renderList(rows){
+    currentReservation = null;
+
+    const body = document.getElementById('customerMyBookingBody');
+    const info = document.getElementById('customerMyBookingCancelInfo');
+
+    if(info) info.innerHTML = '';
+
+    if(!body) return;
+
+    if(!rows.length){
+      body.innerHTML = `
+        <div class="empty">
+          이 기기에서 확인할 예약 정보가 없습니다.<br>
+          새 예약을 완료하면 여기에서 확인할 수 있습니다.
+        </div>
+      `;
+      setHint('이 기기에서 저장된 예약 내역을 보여줍니다.');
+      renderActions(null, {showCancel:false, reason:''}, '', {}, 'list');
+      return;
+    }
+
+    const sorted = sortReservations(rows);
+
+    body.innerHTML = `
+      <div class="sectionLabel">예약 ${sorted.length}건</div>
+      <div class="list">
+        ${sorted.map(r => `
+          <button class="bookingItem" type="button" data-booking-id="${esc(r.id)}">
+            <span class="main">
+              <span class="top">
+                <span class="badge">${esc(r.status || '예약')}</span>
+              </span>
+              <b>${esc(kdate(r.reservation_date))} · ${esc(String(r.reservation_time || '-').slice(0,5))}</b>
+              <small>${esc(r.service_name || '-')} · ${esc(r.staff_name || '담당없음')}</small>
+            </span>
+            <span class="arr">›</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    body.querySelectorAll('[data-booking-id]').forEach(btn => {
+      btn.onclick = () => {
+        const r = sorted.find(x => String(x.id) === btn.dataset.bookingId);
+        if(r) renderDetail(r);
+      };
+    });
+
+    setHint('예약을 누르면 상세내용과 취소 가능 여부를 확인할 수 있습니다.');
+    renderActions(null, {showCancel:false, reason:''}, '', {}, 'list');
+  }
+
+  async function renderDetail(r){
+    currentReservation = r;
+
     const body = document.getElementById('customerMyBookingBody');
     if(!body) return;
 
     body.innerHTML = `
-      <span class="status">${esc(r.status || '예약')}</span>
-      <div class="reviewList">
-        <div><span>예약자</span><b>${esc(r.customer_name || '고객')}</b></div>
-        <div><span>날짜</span><b>${esc(kdate(r.reservation_date))}</b></div>
-        <div><span>시간</span><b>${esc(String(r.reservation_time || '-').slice(0,5))}</b></div>
-        <div><span>서비스</span><b>${esc(r.service_name || '-')}</b></div>
-        <div><span>담당자</span><b>${esc(r.staff_name || '담당없음')}</b></div>
-        <div><span>예상금액</span><b>${won(r.price)}</b></div>
+      <button id="customerMyBookingBack" class="backToList" type="button">‹ 예약 목록</button>
+      <div>
+        <span class="status">${esc(r.status || '예약')}</span>
+        <div class="reviewList">
+          <div><span>예약자</span><b>${esc(r.customer_name || '고객')}</b></div>
+          <div><span>날짜</span><b>${esc(kdate(r.reservation_date))}</b></div>
+          <div><span>시간</span><b>${esc(String(r.reservation_time || '-').slice(0,5))}</b></div>
+          <div><span>서비스</span><b>${esc(r.service_name || '-')}</b></div>
+          <div><span>담당자</span><b>${esc(r.staff_name || '담당없음')}</b></div>
+          <div><span>예상금액</span><b>${won(r.price)}</b></div>
+        </div>
       </div>
     `;
 
-    const token = readLocal(CANCEL_TOKEN_KEY);
+    document.getElementById('customerMyBookingBack').onclick = () => loadList(false);
+
+    const token = getTokenFor(r.id);
     const policy = await getPolicy();
     const state = cancelState(r, policy, token);
 
     renderCancelInfo(state, policy);
-    renderActions(r, state, token, policy);
-  }
-
-  function empty(msg='이 기기에서 확인할 최근 예약 정보가 없습니다.<br>새 예약을 완료하면 여기에서 확인할 수 있습니다.'){
-    const body = document.getElementById('customerMyBookingBody');
-    const info = document.getElementById('customerMyBookingCancelInfo');
-
-    if(body) body.innerHTML = `<div class="empty">${msg}</div>`;
-    if(info) info.innerHTML = '';
-
-    renderActions(null, {showCancel:false, reason:''}, '', {
-      enabled:false, deadlineHours:24, lateEnabled:false, lateText:'', phone:''
-    });
+    renderActions(r, state, token, policy, 'detail');
+    setHint('이 기기에서 저장된 예약입니다.');
   }
 
   async function fetchReservation(id){
@@ -390,6 +628,21 @@
 
     if(error) throw error;
     return r || null;
+  }
+
+  async function fetchReservations(ids){
+    const results = await Promise.all(
+      ids.map(async id => {
+        try{
+          return await fetchReservation(id);
+        }catch(e){
+          console.warn('reservation detail load failed', id, e);
+          return null;
+        }
+      })
+    );
+
+    return results.filter(Boolean);
   }
 
   async function cancelReservation(r, token, policy, button){
@@ -424,19 +677,24 @@
         policyCache = null;
 
         const fresh = await fetchReservation(r.id);
-        if(fresh) await render(fresh);
+        if(fresh) await renderDetail(fresh);
         return;
       }
 
-      removeLocal(CANCEL_TOKEN_KEY);
+      removeTokenFor(r.id);
+
+      if(String(readLocal(RESERVATION_KEY)) === String(r.id)){
+        removeLocal(CANCEL_TOKEN_KEY);
+      }
 
       window.alert('예약이 정상적으로 취소되었습니다.');
 
       const fresh = await fetchReservation(r.id);
+
       if(fresh){
-        await render(fresh);
+        await renderDetail(fresh);
       }else{
-        empty();
+        await loadList(false);
       }
     }catch(e){
       console.error('customer direct cancel failed', e);
@@ -449,45 +707,61 @@
     }
   }
 
-  async function open(){
-    modal();
+  async function loadList(showLoading=true){
+    syncLegacyLatest();
 
-    const w = document.getElementById('customerMyBookingModal');
     const body = document.getElementById('customerMyBookingBody');
     const info = document.getElementById('customerMyBookingCancelInfo');
 
-    if(body){
+    if(showLoading && body){
       body.innerHTML = '<div class="empty">예약 정보를 불러오는 중입니다.</div>';
     }
     if(info) info.innerHTML = '';
 
-    w?.classList.remove('hidden');
+    const ids = getHistory();
 
-    const id = readLocal(RESERVATION_KEY);
-
-    if(!id){
-      empty();
+    if(!ids.length){
+      renderList([]);
       return;
     }
 
     try{
       policyCache = null;
 
-      const r = await fetchReservation(id);
+      const rows = await fetchReservations(ids);
 
-      if(!r){
-        empty();
-        return;
+      // 조회 가능한 예약만 목록에 유지한다.
+      const validIds = rows.map(r => String(r.id));
+      setHistory(ids.filter(id => validIds.includes(String(id))));
+
+      renderList(rows);
+    }catch(e){
+      console.error('my booking list load error', e);
+
+      if(body){
+        body.innerHTML = `
+          <div class="empty">
+            예약 정보를 불러오지 못했습니다.<br>
+            잠시 후 다시 시도해주세요.
+          </div>
+        `;
       }
 
-      await render(r);
-    }catch(e){
-      console.error('my booking load error', e);
-      empty('예약 정보를 불러오지 못했습니다.<br>잠시 후 다시 시도해주세요.');
+      renderActions(null, {showCancel:false, reason:''}, '', {}, 'list');
     }
   }
 
+  async function open(){
+    modal();
+
+    const w = document.getElementById('customerMyBookingModal');
+    w?.classList.remove('hidden');
+
+    await loadList(true);
+  }
+
   function init(){
+    syncLegacyLatest();
     ensureButton();
     modal();
   }
@@ -499,7 +773,10 @@
   }
 
   window.addEventListener('pageshow', () => setTimeout(init, 100));
-  window.addEventListener('focus', () => setTimeout(ensureButton, 100));
+  window.addEventListener('focus', () => setTimeout(init, 100));
+
+  // app.js가 새 예약을 저장하면 기존 단일 예약 키를 자동으로 다건 이력에 누적한다.
+  setInterval(syncLegacyLatest, 1000);
 
   const retry = setInterval(() => {
     if(ensureButton()) clearInterval(retry);
