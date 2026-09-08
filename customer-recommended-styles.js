@@ -1,4 +1,4 @@
-/* Smart Store - customer recommended styles + fixed viewer photo gestures */
+/* Smart Store - customer recommended styles + fixed viewer photo gestures v3 */
 (() => {
   const STYLE_ID='customerRecommendedStylesStyle';
   const TRACK_ID='galleryTrack';
@@ -110,7 +110,7 @@
         inset:0;
         z-index:100050;
         overflow:hidden;
-        background:#111;
+        background:transparent;
         opacity:1;
       }
       #${VIEWER_ID} .recommendedViewerBlur{
@@ -120,18 +120,12 @@
         background-position:center;
         filter:blur(30px) brightness(.50);
         transform:scale(1.08);
-        opacity:0;
-        transition:opacity .24s ease;
+        opacity:1;
       }
       #${VIEWER_ID} .recommendedViewerShade{
         position:absolute;
         inset:0;
         background:rgba(0,0,0,.28);
-        opacity:0;
-        transition:opacity .24s ease;
-      }
-      #${VIEWER_ID}.ready .recommendedViewerBlur,
-      #${VIEWER_ID}.ready .recommendedViewerShade{
         opacity:1;
       }
       #${VIEWER_ID} .recommendedViewerPhotoStage{
@@ -167,44 +161,6 @@
       #${VIEWER_ID}.photoReady .recommendedViewerPhoto{
         opacity:1;
       }
-      #${VIEWER_ID} .recommendedViewerClose{
-        position:absolute;
-        top:calc(12px + env(safe-area-inset-top));
-        right:14px;
-        z-index:8;
-        width:42px;
-        height:42px;
-        border:0;
-        border-radius:50%;
-        background:rgba(0,0,0,.42);
-        color:#fff;
-        font-size:23px;
-        line-height:1;
-        backdrop-filter:blur(10px);
-        -webkit-backdrop-filter:blur(10px);
-        opacity:0;
-        transform:translateY(-4px);
-        transition:opacity .20s ease,transform .20s ease;
-      }
-      #${VIEWER_ID} .recommendedViewerHint{
-        position:absolute;
-        top:calc(15px + env(safe-area-inset-top));
-        left:50%;
-        transform:translateX(-50%) translateY(-4px);
-        z-index:7;
-        padding:7px 10px;
-        border-radius:999px;
-        background:rgba(0,0,0,.36);
-        color:#fff;
-        font-size:11px;
-        font-weight:800;
-        white-space:nowrap;
-        backdrop-filter:blur(8px);
-        -webkit-backdrop-filter:blur(8px);
-        pointer-events:none;
-        opacity:0;
-        transition:opacity .20s ease,transform .20s ease;
-      }
       #${VIEWER_ID} .recommendedViewerBottom{
         position:absolute;
         left:0;
@@ -218,8 +174,6 @@
         transform:translateY(10px);
         transition:opacity .22s ease .05s,transform .22s ease .05s;
       }
-      #${VIEWER_ID}.uiReady .recommendedViewerClose,
-      #${VIEWER_ID}.uiReady .recommendedViewerHint,
       #${VIEWER_ID}.uiReady .recommendedViewerBottom{
         opacity:1;
         transform:none;
@@ -392,8 +346,6 @@
       ).finished;
     }catch{}
 
-    viewer.classList.add('ready');
-
     const stage=viewer.querySelector('.recommendedViewerPhotoStage');
     const target=fitContainRect(stage,photo);
 
@@ -417,35 +369,54 @@
     fly.remove();
   }
 
+  function getPhotoMetrics(viewer){
+    const stage=viewer?.querySelector('.recommendedViewerPhotoStage');
+    const photo=viewer?.querySelector('.recommendedViewerPhoto');
+    if(!stage || !photo)return null;
+
+    return {
+      stage,
+      photo,
+      stageRect:stage.getBoundingClientRect(),
+      baseWidth:photo.offsetWidth,
+      baseHeight:photo.offsetHeight
+    };
+  }
+
   function clampPhotoPan(viewer){
-    const stage=viewer.querySelector('.recommendedViewerPhotoStage');
-    const photo=viewer.querySelector('.recommendedViewerPhoto');
-    if(!stage || !photo)return;
+    const m=getPhotoMetrics(viewer);
+    if(!m)return;
 
-    const sr=stage.getBoundingClientRect();
-    const pr=photo.getBoundingClientRect();
+    photoView.zoom=clamp(Number(photoView.zoom||1),1,4);
 
-    const scaledWidth=pr.width;
-    const scaledHeight=pr.height;
+    if(photoView.zoom<=1.0001){
+      photoView.zoom=1;
+      photoView.x=0;
+      photoView.y=0;
+      return;
+    }
 
-    const maxX=Math.max(0,(scaledWidth-sr.width)/2)+sr.width*.22;
-    const maxY=Math.max(0,(scaledHeight-sr.height)/2)+sr.height*.22;
+    const scaledWidth=m.baseWidth*photoView.zoom;
+    const scaledHeight=m.baseHeight*photoView.zoom;
 
-    photoView.x=clamp(photoView.x,-maxX,maxX);
-    photoView.y=clamp(photoView.y,-maxY,maxY);
+    // 사진이 프레임보다 작은 축은 항상 가운데 고정.
+    // 큰 축은 프레임 가장자리까지만 이동 가능해 빈 공간이 생기지 않는다.
+    const maxX=Math.max(0,(scaledWidth-m.stageRect.width)/2);
+    const maxY=Math.max(0,(scaledHeight-m.stageRect.height)/2);
+
+    photoView.x=clamp(Number(photoView.x||0),-maxX,maxX);
+    photoView.y=clamp(Number(photoView.y||0),-maxY,maxY);
   }
 
   function applyPhotoTransform(viewer,animate=false){
     const photo=viewer?.querySelector('.recommendedViewerPhoto');
     if(!photo)return;
 
-    if(animate){
-      photo.style.transition='transform .20s cubic-bezier(.22,.75,.18,1),opacity .12s ease';
-    }else{
-      photo.style.transition='opacity .12s ease';
-    }
-
     clampPhotoPan(viewer);
+
+    photo.style.transition=animate
+      ? 'transform .20s cubic-bezier(.22,.75,.18,1),opacity .12s ease'
+      : 'opacity .12s ease';
 
     photo.style.transform=
       `translate3d(${photoView.x}px,${photoView.y}px,0) scale(${photoView.zoom})`;
@@ -456,41 +427,97 @@
     applyPhotoTransform(viewer,animate);
   }
 
-  function togglePhotoZoom(viewer){
-    if(photoView.zoom>1.05 || Math.abs(photoView.x)>2 || Math.abs(photoView.y)>2){
-      resetPhoto(viewer,true);
+  function zoomAround(viewer,nextZoom,clientX,clientY,animate=false){
+    const m=getPhotoMetrics(viewer);
+    if(!m)return;
+
+    const oldZoom=Math.max(1,Number(photoView.zoom||1));
+    const newZoom=clamp(Number(nextZoom||1),1,4);
+
+    if(newZoom<=1.0001){
+      resetPhoto(viewer,animate);
       return;
     }
 
-    photoView={zoom:2,x:0,y:0};
-    applyPhotoTransform(viewer,true);
+    const cx=m.stageRect.left+m.stageRect.width/2;
+    const cy=m.stageRect.top+m.stageRect.height/2;
+    const anchorX=Number.isFinite(clientX)?clientX:cx;
+    const anchorY=Number.isFinite(clientY)?clientY:cy;
+    const localX=anchorX-cx;
+    const localY=anchorY-cy;
+
+    // 확대 전 손가락 아래 있던 사진 지점을 확대 후에도 같은 위치에 둔다.
+    const worldX=(localX-photoView.x)/oldZoom;
+    const worldY=(localY-photoView.y)/oldZoom;
+
+    photoView.zoom=newZoom;
+    photoView.x=localX-worldX*newZoom;
+    photoView.y=localY-worldY*newZoom;
+
+    // 프레임 경계에 닿으면 그 방향 이동은 여기서 멈추고 안쪽으로만 확대된다.
+    applyPhotoTransform(viewer,animate);
+  }
+
+  function togglePhotoZoom(viewer,clientX,clientY){
+    if(photoView.zoom>1.05){
+      resetPhoto(viewer,true);
+      return;
+    }
+    zoomAround(viewer,2,clientX,clientY,true);
   }
 
   function touchDistance(a,b){
     return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
   }
 
+  function touchMidpoint(a,b){
+    return {
+      x:(a.clientX+b.clientX)/2,
+      y:(a.clientY+b.clientY)/2
+    };
+  }
+
+  function makePinchState(viewer,a,b){
+    const m=getPhotoMetrics(viewer);
+    if(!m)return null;
+
+    const mid=touchMidpoint(a,b);
+    const cx=m.stageRect.left+m.stageRect.width/2;
+    const cy=m.stageRect.top+m.stageRect.height/2;
+    const localX=mid.x-cx;
+    const localY=mid.y-cy;
+    const z=Math.max(1,photoView.zoom);
+
+    return {
+      mode:'pinch',
+      distance:Math.max(1,touchDistance(a,b)),
+      zoom:z,
+      worldX:(localX-photoView.x)/z,
+      worldY:(localY-photoView.y)/z,
+      moved:true
+    };
+  }
+
   function installPhotoGestures(viewer){
     const stage=viewer.querySelector('.recommendedViewerPhotoStage');
-    if(!stage)return;
+    const photo=viewer.querySelector('.recommendedViewerPhoto');
+    if(!stage || !photo)return;
 
     stage.addEventListener('touchstart',e=>{
       if(e.touches.length>=2){
-        touchState={
-          mode:'pinch',
-          distance:touchDistance(e.touches[0],e.touches[1]),
-          zoom:photoView.zoom,
-          moved:true
-        };
+        touchState=makePinchState(viewer,e.touches[0],e.touches[1]);
       }else if(e.touches.length===1){
         touchState={
           mode:'drag',
           startX:e.touches[0].clientX,
           startY:e.touches[0].clientY,
+          lastX:e.touches[0].clientX,
+          lastY:e.touches[0].clientY,
           baseX:photoView.x,
           baseY:photoView.y,
           moved:false,
-          startedAt:Date.now()
+          startedAt:Date.now(),
+          onPhoto:e.target===photo
         };
       }
       e.preventDefault();
@@ -501,19 +528,28 @@
 
       if(e.touches.length>=2){
         if(touchState.mode!=='pinch'){
-          touchState={
-            mode:'pinch',
-            distance:touchDistance(e.touches[0],e.touches[1]),
-            zoom:photoView.zoom,
-            moved:true
-          };
+          touchState=makePinchState(viewer,e.touches[0],e.touches[1]);
+          if(!touchState)return;
         }
 
-        const d=touchDistance(e.touches[0],e.touches[1]);
-        if(touchState.distance>0){
-          photoView.zoom=clamp(touchState.zoom*(d/touchState.distance),0.7,4);
-          applyPhotoTransform(viewer,false);
-        }
+        const m=getPhotoMetrics(viewer);
+        if(!m)return;
+
+        const mid=touchMidpoint(e.touches[0],e.touches[1]);
+        const cx=m.stageRect.left+m.stageRect.width/2;
+        const cy=m.stageRect.top+m.stageRect.height/2;
+        const localX=mid.x-cx;
+        const localY=mid.y-cy;
+        const nextZoom=clamp(
+          touchState.zoom*(touchDistance(e.touches[0],e.touches[1])/touchState.distance),
+          1,
+          4
+        );
+
+        photoView.zoom=nextZoom;
+        photoView.x=localX-touchState.worldX*nextZoom;
+        photoView.y=localY-touchState.worldY*nextZoom;
+        applyPhotoTransform(viewer,false);
 
         touchState.moved=true;
         e.preventDefault();
@@ -526,21 +562,32 @@
             mode:'drag',
             startX:e.touches[0].clientX,
             startY:e.touches[0].clientY,
+            lastX:e.touches[0].clientX,
+            lastY:e.touches[0].clientY,
             baseX:photoView.x,
             baseY:photoView.y,
             moved:false,
-            startedAt:Date.now()
+            startedAt:Date.now(),
+            onPhoto:e.target===photo
           };
         }
 
-        const dx=e.touches[0].clientX-touchState.startX;
-        const dy=e.touches[0].clientY-touchState.startY;
+        const x=e.touches[0].clientX;
+        const y=e.touches[0].clientY;
+        const dx=x-touchState.startX;
+        const dy=y-touchState.startY;
 
+        touchState.lastX=x;
+        touchState.lastY=y;
         if(Math.hypot(dx,dy)>6)touchState.moved=true;
 
-        photoView.x=touchState.baseX+dx;
-        photoView.y=touchState.baseY+dy;
-        applyPhotoTransform(viewer,false);
+        // 기본 크기(zoom 1)에서는 사진 자체를 움직이지 않는다.
+        if(photoView.zoom>1.0001 && touchState.onPhoto){
+          photoView.x=touchState.baseX+dx;
+          photoView.y=touchState.baseY+dy;
+          applyPhotoTransform(viewer,false);
+        }
+
         e.preventDefault();
       }
     },{passive:false});
@@ -548,11 +595,36 @@
     stage.addEventListener('touchend',e=>{
       if(!touchState)return;
 
-      const state=touchState;
-      touchState=null;
+      // 핀치 후 한 손가락이 남으면 새 드래그 기준을 잡는다.
+      if(touchState.mode==='pinch' && e.touches.length===1){
+        touchState={
+          mode:'drag',
+          startX:e.touches[0].clientX,
+          startY:e.touches[0].clientY,
+          lastX:e.touches[0].clientX,
+          lastY:e.touches[0].clientY,
+          baseX:photoView.x,
+          baseY:photoView.y,
+          moved:true,
+          startedAt:Date.now(),
+          onPhoto:true
+        };
+        e.preventDefault();
+        return;
+      }
 
-      if(state.mode==='drag' && !state.moved && Date.now()-state.startedAt<420){
-        togglePhotoZoom(viewer);
+      if(e.touches.length===0){
+        const state=touchState;
+        touchState=null;
+
+        if(state.mode==='drag' && !state.moved && Date.now()-state.startedAt<420){
+          if(state.onPhoto){
+            togglePhotoZoom(viewer,state.lastX,state.lastY);
+          }else{
+            // X 없이도 상세 뷰어를 닫을 수 있도록 사진 바깥의 블러 영역을 탭하면 닫힌다.
+            closeViewer();
+          }
+        }
       }
 
       e.preventDefault();
@@ -562,14 +634,19 @@
       touchState=null;
     },{passive:true});
 
+    // 데스크톱/마우스 보조 동작
     stage.addEventListener('click',e=>{
       if('ontouchstart' in window)return;
-      togglePhotoZoom(viewer);
+      if(e.target===photo){
+        togglePhotoZoom(viewer,e.clientX,e.clientY);
+      }else{
+        closeViewer();
+      }
       e.preventDefault();
     });
 
     stage.addEventListener('mousedown',e=>{
-      if(e.button!==0)return;
+      if(e.button!==0 || e.target!==photo)return;
       mouseState={
         startX:e.clientX,
         startY:e.clientY,
@@ -580,17 +657,21 @@
       e.preventDefault();
     });
 
-    window.addEventListener('mousemove',e=>{
-      if(!mouseState || !activeViewer)return;
+    stage.addEventListener('mousemove',e=>{
+      if(!mouseState || photoView.zoom<=1.0001)return;
       const dx=e.clientX-mouseState.startX;
       const dy=e.clientY-mouseState.startY;
       if(Math.hypot(dx,dy)>5)mouseState.moved=true;
       photoView.x=mouseState.baseX+dx;
       photoView.y=mouseState.baseY+dy;
-      applyPhotoTransform(activeViewer,false);
+      applyPhotoTransform(viewer,false);
     });
 
-    window.addEventListener('mouseup',()=>{
+    stage.addEventListener('mouseup',()=>{
+      mouseState=null;
+    });
+
+    stage.addEventListener('mouseleave',()=>{
       mouseState=null;
     });
   }
@@ -625,7 +706,6 @@
       'opacity .34s ease';
 
     requestAnimationFrame(()=>{
-      viewer.classList.remove('ready');
       setFlyRect(fly,cardRect);
       fly.style.borderRadius=getComputedStyle(card).borderRadius||'22px';
       fly.style.transform='scale(.985)';
@@ -668,8 +748,6 @@
         <img class="recommendedViewerPhoto" alt="${esc(row.title||'추천 스타일')}">
       </div>
 
-      <button class="recommendedViewerClose" type="button" aria-label="닫기">×</button>
-      <div class="recommendedViewerHint">사진 탭 확대 · 한 손가락 이동 · 두 손가락 확대/축소</div>
 
       <div class="recommendedViewerBottom">
         <h3>${esc(row.title||'추천 스타일')}</h3>
@@ -687,14 +765,16 @@
     const photo=viewer.querySelector('.recommendedViewerPhoto');
     photo.src=row.image_url;
 
-    viewer.querySelector('.recommendedViewerClose').addEventListener('click',e=>{
-      e.stopPropagation();
-      closeViewer();
-    });
-
     viewer.querySelector('.recommendedViewerBook').addEventListener('click',e=>{
       e.stopPropagation();
       closeViewer(()=>bookStyle(row));
+    });
+
+    viewer.addEventListener('click',e=>{
+      if(e.target.classList.contains('recommendedViewerBlur') ||
+         e.target.classList.contains('recommendedViewerShade')){
+        closeViewer();
+      }
     });
 
     document.body.appendChild(viewer);
