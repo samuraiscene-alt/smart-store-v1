@@ -1,4 +1,4 @@
-/* Smart Store - admin home header editor v2: logo size control */
+/* Smart Store - admin home header editor v3: logo size + vertical position */
 (() => {
   const CONFIG = window.SMART_STORE_CONFIG || {};
   const CARD_ID = 'adminHomeHeaderCard';
@@ -8,6 +8,7 @@
   let storeId = null;
   let currentLogoUrl = '';
   let currentLogoWidth = 42;
+  let currentLogoY = 0;
 
   const q = s => document.querySelector(s);
   const clamp = (n,min,max) => Math.min(max,Math.max(min,Number(n)||0));
@@ -24,7 +25,7 @@
         padding:18px;
         text-align:center;
         margin:10px 0 14px;
-        min-height:150px;
+        min-height:180px;
         display:flex;
         align-items:center;
         justify-content:center;
@@ -35,13 +36,14 @@
         height:auto;
         object-fit:contain;
         margin:0 auto;
+        will-change:transform,width;
       }
       #${CARD_ID} .homeHeaderPreview .emptyLogo{
         color:var(--muted);
         font-size:12px;
         padding:10px 0;
       }
-      #${CARD_ID} .homeLogoSizeHead{
+      #${CARD_ID} .homeLogoControlHead{
         display:flex;
         align-items:center;
         justify-content:space-between;
@@ -50,7 +52,7 @@
         font-size:13px;
         font-weight:800;
       }
-      #${CARD_ID} .homeLogoSizeHead b{
+      #${CARD_ID} .homeLogoControlHead b{
         color:var(--dark);
       }
       #${CARD_ID} .homeLogoSlider{
@@ -111,12 +113,19 @@
         <div class="emptyLogo">등록된 로고가 없습니다.</div>
       </div>
 
-      <div class="homeLogoSizeHead">
+      <div class="homeLogoControlHead">
         <span>로고 크기</span>
         <b id="homeLogoSizeValue">42%</b>
       </div>
       <input id="homeLogoSize" class="homeLogoSlider" type="range" min="20" max="90" step="1" value="42">
       <div class="homeLogoScaleLabels"><span>작게</span><span>크게</span></div>
+
+      <div class="homeLogoControlHead">
+        <span>로고 위·아래 위치</span>
+        <b id="homeLogoYValue">0px</b>
+      </div>
+      <input id="homeLogoY" class="homeLogoSlider" type="range" min="-60" max="60" step="1" value="0">
+      <div class="homeLogoScaleLabels"><span>위로</span><span>아래로</span></div>
 
       <label class="field">
         <span>상단 로고</span>
@@ -126,7 +135,7 @@
       <small class="formNote">상호와 한줄 소개는 바로 위 ‘매장 기본정보’의 상호 / 메인 문구와 자동으로 연결됩니다.</small>
 
       <div class="homeHeaderActions">
-        <button id="saveHomeHeader" class="primary">문구/크기 저장</button>
+        <button id="saveHomeHeader" class="primary">문구/크기/위치 저장</button>
         <button id="removeHomeLogo" class="secondary">로고 삭제</button>
       </div>
       <small id="homeHeaderStatus" class="homeHeaderStatus"></small>
@@ -146,22 +155,38 @@
     if(el) el.textContent = text || '';
   }
 
-  function syncSizeUI(){
+  function syncControls(){
     currentLogoWidth = clamp(currentLogoWidth,20,90) || 42;
-    const slider = q('#homeLogoSize');
-    const value = q('#homeLogoSizeValue');
-    if(slider) slider.value = String(currentLogoWidth);
-    if(value) value.textContent = `${currentLogoWidth}%`;
+    currentLogoY = clamp(currentLogoY,-60,60);
+
+    const size = q('#homeLogoSize');
+    const sizeValue = q('#homeLogoSizeValue');
+    const y = q('#homeLogoY');
+    const yValue = q('#homeLogoYValue');
+
+    if(size) size.value = String(currentLogoWidth);
+    if(sizeValue) sizeValue.textContent = `${currentLogoWidth}%`;
+    if(y) y.value = String(currentLogoY);
+    if(yValue) yValue.textContent = `${currentLogoY}px`;
+  }
+
+  function updatePreviewTransform(){
+    syncControls();
+    const img = q('#homeHeaderPreview img');
+    if(!img) return;
+    img.style.width = `${currentLogoWidth}%`;
+    img.style.transform = `translateY(${currentLogoY}px)`;
   }
 
   function renderLogo(){
     const box = q('#homeHeaderPreview');
     if(!box) return;
 
-    syncSizeUI();
+    syncControls();
 
     if(currentLogoUrl){
-      box.innerHTML = `<img src="${currentLogoUrl}" alt="현재 상단 로고" style="width:${currentLogoWidth}%">`;
+      box.innerHTML = `<img src="${currentLogoUrl}" alt="현재 상단 로고">`;
+      updatePreviewTransform();
     }else{
       box.innerHTML = '<div class="emptyLogo">등록된 로고가 없습니다.</div>';
     }
@@ -183,6 +208,7 @@
     storeId = store.id || null;
     currentLogoUrl = store.home_logo_url || '';
     currentLogoWidth = clamp(store.home_logo_width ?? 42,20,90) || 42;
+    currentLogoY = clamp(store.home_logo_y ?? 0,-60,60);
 
     const welcome = q('#homeWelcomeInput');
     if(welcome) welcome.value = store.home_welcome_label || 'WELCOME';
@@ -197,12 +223,14 @@
 
     const value = (q('#homeWelcomeInput')?.value || '').trim() || 'WELCOME';
     currentLogoWidth = clamp(q('#homeLogoSize')?.value ?? currentLogoWidth,20,90) || 42;
+    currentLogoY = clamp(q('#homeLogoY')?.value ?? currentLogoY,-60,60);
 
     status('저장 중...');
     const {error} = await sb.from('stores')
       .update({
         home_welcome_label:value,
-        home_logo_width:currentLogoWidth
+        home_logo_width:currentLogoWidth,
+        home_logo_y:currentLogoY
       })
       .eq('id',storeId);
 
@@ -212,7 +240,7 @@
       return;
     }
 
-    renderLogo();
+    updatePreviewTransform();
     status('저장 완료 ✓');
   }
 
@@ -245,7 +273,8 @@
     const {error} = await sb.from('stores')
       .update({
         home_logo_url:url,
-        home_logo_width:currentLogoWidth
+        home_logo_width:currentLogoWidth,
+        home_logo_y:currentLogoY
       })
       .eq('id',storeId);
 
@@ -285,16 +314,24 @@
     const save = q('#saveHomeHeader');
     const file = q('#homeLogoFile');
     const remove = q('#removeHomeLogo');
-    const slider = q('#homeLogoSize');
+    const size = q('#homeLogoSize');
+    const y = q('#homeLogoY');
 
     if(save) save.onclick = saveHeader;
     if(file) file.onchange = e => uploadLogo(e.target.files?.[0]);
     if(remove) remove.onclick = removeLogo;
 
-    if(slider){
-      slider.oninput = ()=>{
-        currentLogoWidth = clamp(slider.value,20,90) || 42;
-        renderLogo();
+    if(size){
+      size.oninput = ()=>{
+        currentLogoWidth = clamp(size.value,20,90) || 42;
+        updatePreviewTransform();
+      };
+    }
+
+    if(y){
+      y.oninput = ()=>{
+        currentLogoY = clamp(y.value,-60,60);
+        updatePreviewTransform();
       };
     }
   }

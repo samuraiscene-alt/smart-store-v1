@@ -1,4 +1,4 @@
-/* Smart Store - customer compact home header v2: adjustable logo size */
+/* Smart Store - customer compact home header v3: adjustable logo size + vertical position */
 (() => {
   const CONFIG = window.SMART_STORE_CONFIG || {};
   const CACHE_KEY = 'smartStoreCloudCacheV1';
@@ -35,6 +35,7 @@
         max-width:none;
         max-height:none;
         object-fit:contain;
+        will-change:transform,width;
       }
       .hero.compactHomeHero .homeLogo.hiddenLogo{
         display:none;
@@ -144,15 +145,18 @@
 
     const logoUrl = String(store.home_logo_url || '');
     const logoWidth = clamp(store.home_logo_width ?? 42,20,90) || 42;
+    const logoY = clamp(store.home_logo_y ?? 0,-60,60);
 
     if(ui.logo){
       if(logoUrl){
         ui.logo.src = logoUrl;
         ui.logo.style.width = `${logoWidth}%`;
+        ui.logo.style.transform = `translateY(${logoY}px)`;
         ui.logo.classList.remove('hiddenLogo');
       }else{
         ui.logo.removeAttribute('src');
         ui.logo.style.removeProperty('width');
+        ui.logo.style.removeProperty('transform');
         ui.logo.classList.add('hiddenLogo');
       }
     }
