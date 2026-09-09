@@ -1,4 +1,4 @@
-/* Smart Store - admin intro photo + text effect editor v2 */
+/* Smart Store - admin intro editor v3: position controls + advanced text effects */
 (() => {
   const STYLE_ID='adminIntroEditorStyle';
   const CARD_ID='adminIntroEditorCard';
@@ -11,14 +11,15 @@
     image:{fit:'contain',x:0,y:0,zoom:1},
     logo:{enabled:false,x:50,y:18,width:34},
     texts:[
-      {text:'',x:50,y:62,size:18,color:'#ffffff',align:'center',animation:'fade',delay:0.2,duration:1.2},
-      {text:'',x:50,y:70,size:36,color:'#ffffff',align:'center',animation:'fade-in-out',delay:0.4,duration:1.8},
-      {text:'',x:50,y:78,size:16,color:'#ffffff',align:'center',animation:'slide-up',delay:0.7,duration:1.2}
+      {text:'',x:50,y:62,size:18,color:'#ffffff',align:'center',animation:'fade',delay:0.2,duration:1.2,intensity:60},
+      {text:'',x:50,y:70,size:36,color:'#ffffff',align:'center',animation:'fade-in-out',delay:0.4,duration:1.8,intensity:60},
+      {text:'',x:50,y:78,size:16,color:'#ffffff',align:'center',animation:'slide-up',delay:0.7,duration:1.2,intensity:60}
     ],
     displaySeconds:4,
     showSkip:true
   };
 
+  const ANIMATIONS=['none','fade','fade-in-out','slide-left','slide-right','slide-up','zoom','smoke-out','ink-bleed','water-flow'];
   const q=s=>document.querySelector(s);
   const qa=s=>[...document.querySelectorAll(s)];
   const clamp=(n,min,max)=>Math.min(max,Math.max(min,Number(n)||0));
@@ -67,9 +68,10 @@
       size:clamp(t.size,10,72)||18,
       color:/^#[0-9a-f]{6}$/i.test(String(t.color||''))?String(t.color):'#ffffff',
       align:['left','center','right'].includes(t.align)?t.align:'center',
-      animation:['none','fade','fade-in-out','slide-left','slide-right','slide-up','zoom'].includes(t.animation)?t.animation:'fade',
+      animation:ANIMATIONS.includes(t.animation)?t.animation:'fade',
       delay:clamp(t.delay,0,5),
-      duration:clamp(t.duration,0.4,5)||1.2
+      duration:clamp(t.duration,0.4,5)||1.2,
+      intensity:clamp(t.intensity??60,0,100)
     }));
     next.displaySeconds=[3,4,5,6,8].includes(Number(next.displaySeconds))?Number(next.displaySeconds):4;
     next.showSkip=next.showSkip!==false;
@@ -85,13 +87,13 @@
       .introEditorHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
       .introEditorHead h3{margin:0 0 4px}.introEditorHead p{margin:0;color:#8e817b;font-size:12px;line-height:1.5}
       .introEditorMode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 14px}
-      .introEditorMode button,.introEditorTools button,.introLayerSelect button,.introTextAlign button{border:1px solid #eadfda;background:#fff;color:#6d4f4c;border-radius:14px;padding:11px 9px;font-weight:800}
+      .introEditorMode button,.introEditorTools button,.introLayerSelect button,.introTextAlign button,.introNudgeGrid button{border:1px solid #eadfda;background:#fff;color:#6d4f4c;border-radius:14px;padding:11px 9px;font-weight:800}
       .introEditorMode button.active,.introEditorTools button.active,.introLayerSelect button.active,.introTextAlign button.active{background:#6d4f4c;color:#fff;border-color:#6d4f4c}
       .introPreviewWrap{display:flex;justify-content:center;margin:10px 0 12px}
-      #${PREVIEW_ID}{width:min(100%,300px);aspect-ratio:9/16;position:relative;overflow:hidden;border-radius:24px;background:#211c1a;border:1px solid #d9ccc6;touch-action:none;user-select:none;box-shadow:0 10px 28px rgba(48,34,31,.12)}
+      #${PREVIEW_ID}{width:min(100%,300px);aspect-ratio:9/16;position:relative;overflow:hidden;border-radius:24px;background:#211c1a;border:1px solid #d9ccc6;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 10px 28px rgba(48,34,31,.12)}
       .introPreviewImage{position:absolute;left:50%;top:50%;max-width:none;max-height:none;width:auto;height:auto;pointer-events:none;will-change:transform}
-      .introPreviewLogo{position:absolute;transform:translate(-50%,-50%);height:auto;max-width:none;z-index:3;touch-action:none;user-select:none}
-      .introPreviewText{position:absolute;transform:translate(-50%,-50%);z-index:4;white-space:pre-wrap;line-height:1.15;font-weight:800;text-shadow:0 2px 10px rgba(0,0,0,.28);touch-action:none;user-select:none;max-width:90%;padding:4px}
+      .introPreviewLogo{position:absolute;transform:translate(-50%,-50%);height:auto;max-width:none;z-index:3;touch-action:none;user-select:none;-webkit-user-select:none;pointer-events:auto}
+      .introPreviewText{position:absolute;transform:translate(-50%,-50%);z-index:4;white-space:pre-wrap;line-height:1.15;font-weight:800;text-shadow:0 2px 10px rgba(0,0,0,.28);touch-action:none;user-select:none;-webkit-user-select:none;max-width:90%;padding:6px;pointer-events:auto}
       .introPreviewLogo.selected,.introPreviewText.selected{outline:2px solid rgba(255,255,255,.95);outline-offset:4px;border-radius:6px}
       .introPreviewSkip{position:absolute;right:10px;top:10px;z-index:6;border:1px solid rgba(255,255,255,.55);color:#fff;background:rgba(0,0,0,.22);padding:7px 10px;border-radius:999px;font-size:10px}
       .introPreviewEmpty{position:absolute;inset:0;display:grid;place-items:center;color:#bfb2ac;font-size:12px;text-align:center;padding:20px}
@@ -101,28 +103,48 @@
       .introLayerSelect{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:15px 0 10px;overflow:auto}.introLayerSelect button{font-size:11px;padding:10px 4px;white-space:nowrap}
       .introPanel{display:none;border-top:1px solid #eadfda;padding-top:12px}.introPanel.active{display:block}
       .introTextAlign{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-      .introRangeRow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:9px 0}.introRangeRow input[type="range"]{width:100%}.introRangeValue{min-width:54px;text-align:right;color:#6d4f4c;font-weight:900;font-size:12px}
+      .introRangeRow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:9px 0}.introRangeRow input[type="range"]{width:100%}.introRangeValue{min-width:64px;text-align:right;color:#6d4f4c;font-weight:900;font-size:12px}
+      .introRangeLabel{display:block;color:#8e817b;font-size:12px;font-weight:800;margin-top:12px}
       .introEditorToggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0}.introEditorToggle input{width:23px;height:23px;accent-color:#6d4f4c}
       .introEditorActions{display:grid;grid-template-columns:.8fr 1.2fr;gap:9px;margin-top:16px}
       .introEditorFileNote{color:#8e817b;font-size:11px;line-height:1.45;margin-top:-3px}
       .introEditorStatus{min-height:18px;color:#8e817b;font-size:12px;margin-top:8px;font-weight:700}
       .introEditorStatus.error{color:#a94f4f}.introEditorStatus.ok{color:#4f8061}
       .introEditorPlay{width:100%;margin-top:8px}
+      .introPositionBox{margin:12px 0 15px;padding:12px;border:1px solid #eadfda;border-radius:16px;background:#fffdfc}
+      .introPositionHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.introPositionHead b{font-size:13px}.introPositionValue{font-size:12px;color:#6d4f4c;font-weight:900}
+      .introNudgeGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;max-width:270px;margin:0 auto}.introNudgeGrid button{font-size:20px;line-height:1;padding:12px}.introNudgeGrid .introNudgeCenter{font-size:11px;color:#9a8b85;background:#f5efec;pointer-events:none}
+      .introAdvancedNote{font-size:11px;color:#8e817b;line-height:1.45;margin:6px 0 0}
       @keyframes introFade{0%{opacity:0}100%{opacity:1}}
       @keyframes introFadeInOut{0%,100%{opacity:0}25%,75%{opacity:1}}
       @keyframes introSlideLeft{0%{opacity:0;transform:translate(-65%,-50%)}100%{opacity:1;transform:translate(-50%,-50%)}}
       @keyframes introSlideRight{0%{opacity:0;transform:translate(-35%,-50%)}100%{opacity:1;transform:translate(-50%,-50%)}}
       @keyframes introSlideUp{0%{opacity:0;transform:translate(-50%,-30%)}100%{opacity:1;transform:translate(-50%,-50%)}}
       @keyframes introZoom{0%{opacity:0;transform:translate(-50%,-50%) scale(.86)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+      @keyframes introSmokeOut{0%,35%{opacity:1;filter:blur(0);transform:translate(-50%,-50%) scale(1)}100%{opacity:0;filter:blur(var(--fx-blur));transform:translate(-50%,calc(-50% - var(--fx-move))) scale(var(--fx-scale))}}
+      @keyframes introInkBleed{0%{opacity:0;filter:blur(var(--fx-blur));text-shadow:0 0 var(--fx-shadow) currentColor;transform:translate(-50%,-50%) scale(.92)}55%{opacity:1;filter:blur(1px);text-shadow:0 0 3px currentColor;transform:translate(-50%,-50%) scale(1.03)}100%{opacity:1;filter:blur(0);text-shadow:0 2px 10px rgba(0,0,0,.28);transform:translate(-50%,-50%) scale(1)}}
+      @keyframes introWaterFlow{0%,35%{opacity:1;filter:blur(0);transform:translate(-50%,-50%) scaleY(1)}100%{opacity:0;filter:blur(var(--fx-blur));transform:translate(-50%,calc(-50% + var(--fx-move))) scaleY(var(--fx-stretch))}}
       @media(max-width:390px){#${PREVIEW_ID}{width:min(100%,270px)}.introLayerSelect{grid-template-columns:repeat(5,minmax(58px,1fr))}}
     `;
     document.head.appendChild(style);
   }
 
+  function positionControls(key,label){
+    return `
+      <div class="introPositionBox">
+        <div class="introPositionHead"><b>${label} 위치</b><span id="introPosValue-${key}" class="introPositionValue">X 50 · Y 50</span></div>
+        <div class="introNudgeGrid" data-nudge-key="${key}">
+          <span></span><button type="button" data-dx="0" data-dy="-1">↑</button><span></span>
+          <button type="button" data-dx="-1" data-dy="0">←</button><button type="button" class="introNudgeCenter" tabindex="-1">1% 이동</button><button type="button" data-dx="1" data-dy="0">→</button>
+          <span></span><button type="button" data-dx="0" data-dy="1">↓</button><span></span>
+        </div>
+      </div>`;
+  }
+
   function editorMarkup(){
     return `
       <div class="introEditorHead">
-        <div><h3>인트로 편집</h3><p>사진과 로고, 글씨 효과를 실제 손님 화면 비율로 맞춥니다.</p></div>
+        <div><h3>인트로 편집</h3><p>사진·로고·글씨 위치와 효과를 실제 손님 화면 비율로 맞춥니다.</p></div>
         <button id="introEditorSave" class="primary mini" type="button">저장</button>
       </div>
       <div class="introEditorMode">
@@ -130,7 +152,7 @@
         <button id="introEditorOn" type="button">사진 인트로</button>
       </div>
       <div class="introPreviewWrap"><div id="${PREVIEW_ID}"></div></div>
-      <p class="introEditorHelp">미리보기 요소를 누른 뒤 손가락으로 이동하세요. 사진 선택 시 두 손가락 확대/축소가 됩니다.</p>
+      <p class="introEditorHelp">사진은 드래그·두 손가락 확대/축소, 로고와 글씨는 드래그로 이동합니다. 아래 화살표로 1%씩 미세 조정할 수도 있습니다.</p>
       <button id="introEditorPlay" class="secondary introEditorPlay" type="button">▶ 글씨 효과 미리보기</button>
       <div class="introLayerSelect">
         <button type="button" data-intro-select="image">사진</button>
@@ -152,7 +174,9 @@
         <label class="field"><span>로고 이미지</span><input id="introEditorLogoFile" type="file" accept="image/*" /></label>
         <p class="introEditorFileNote">투명 PNG 권장 · 최대 2MB.</p>
         <label class="introEditorToggle"><span><b>로고 표시</b></span><input id="introLogoEnabled" type="checkbox" /></label>
+        <span class="introRangeLabel">로고 크기</span>
         <div class="introRangeRow"><input id="introLogoWidth" type="range" min="8" max="80" step="1"><span id="introLogoWidthValue" class="introRangeValue"></span></div>
+        ${positionControls('logo','로고')}
         <button id="introLogoReset" class="secondary full" type="button">로고 위치 초기화</button>
       </div>
 
@@ -160,11 +184,29 @@
         <div id="introPanelText${i}" class="introPanel">
           <label class="field"><span>글씨 ${i+1}</span><input id="introText${i}" maxlength="80" placeholder="표시할 문구 입력" /></label>
           <label class="field"><span>글씨 색상</span><input id="introTextColor${i}" type="color" /></label>
+          <span class="introRangeLabel">글씨 크기</span>
           <div class="introRangeRow"><input id="introTextSize${i}" type="range" min="10" max="72" step="1"><span id="introTextSizeValue${i}" class="introRangeValue"></span></div>
+          ${positionControls(`text${i}`,`글씨 ${i+1}`)}
           <div class="field"><span>정렬</span><div id="introTextAlign${i}" class="introTextAlign"><button data-align="left" type="button">왼쪽</button><button data-align="center" type="button">가운데</button><button data-align="right" type="button">오른쪽</button></div></div>
-          <label class="field"><span>등장 효과</span><select id="introTextAnimation${i}"><option value="none">효과 없음</option><option value="fade">페이드 인</option><option value="fade-in-out">페이드 인 → 아웃</option><option value="slide-left">왼쪽에서 살짝</option><option value="slide-right">오른쪽에서 살짝</option><option value="slide-up">아래에서 위로</option><option value="zoom">살짝 확대</option></select></label>
+          <label class="field"><span>등장 효과</span><select id="introTextAnimation${i}">
+            <option value="none">효과 없음</option>
+            <option value="fade">페이드 인</option>
+            <option value="fade-in-out">페이드 인 → 아웃</option>
+            <option value="slide-left">왼쪽에서 살짝</option>
+            <option value="slide-right">오른쪽에서 살짝</option>
+            <option value="slide-up">아래에서 위로</option>
+            <option value="zoom">살짝 확대</option>
+            <option value="smoke-out">고급 · 연기처럼 사라짐</option>
+            <option value="ink-bleed">고급 · 잉크처럼 번짐</option>
+            <option value="water-flow">고급 · 물처럼 흐르며 사라짐</option>
+          </select></label>
+          <span class="introRangeLabel">시작 지연</span>
           <div class="introRangeRow"><input id="introTextDelay${i}" type="range" min="0" max="5" step="0.1"><span id="introTextDelayValue${i}" class="introRangeValue"></span></div>
+          <span class="introRangeLabel">효과 시간</span>
           <div class="introRangeRow"><input id="introTextDuration${i}" type="range" min="0.4" max="5" step="0.1"><span id="introTextDurationValue${i}" class="introRangeValue"></span></div>
+          <span class="introRangeLabel">효과 강도</span>
+          <div class="introRangeRow"><input id="introTextIntensity${i}" type="range" min="0" max="100" step="5"><span id="introTextIntensityValue${i}" class="introRangeValue"></span></div>
+          <p class="introAdvancedNote">효과 강도는 고급 효과(연기·잉크·물흐름)에서 가장 크게 반영됩니다.</p>
           <button id="introTextReset${i}" class="secondary full" type="button">글씨 위치 초기화</button>
         </div>`).join('')}
 
@@ -198,12 +240,40 @@
     return true;
   }
 
-  function setSelected(key){
+  function updateSelectionOutline(){
+    qa('[data-intro-overlay]').forEach(el=>el.classList.toggle('selected',el.dataset.introOverlay===selected));
+  }
+
+  function setSelected(key,rerender=true){
     selected=key;
     qa('[data-intro-select]').forEach(b=>b.classList.toggle('active',b.dataset.introSelect===key));
     qa('.introPanel').forEach(p=>p.classList.remove('active'));
     const panel=key==='image'?q('#introPanelImage'):key==='logo'?q('#introPanelLogo'):q(`#introPanelText${Number(key.replace('text',''))}`);
     panel?.classList.add('active');
+    if(rerender)renderPreview();
+    else updateSelectionOutline();
+  }
+
+  function targetByKey(key){
+    if(key==='logo')return config.logo;
+    if(key?.startsWith('text'))return config.texts[Number(key.replace('text',''))];
+    return null;
+  }
+
+  function updatePositionDisplays(){
+    const items=[['logo',config.logo],['text0',config.texts[0]],['text1',config.texts[1]],['text2',config.texts[2]]];
+    items.forEach(([key,item])=>{
+      const el=q(`#introPosValue-${key}`);
+      if(el)el.textContent=`X ${Math.round(item.x)} · Y ${Math.round(item.y)}`;
+    });
+  }
+
+  function nudge(key,dx,dy){
+    const target=targetByKey(key);
+    if(!target)return;
+    target.x=clamp(target.x+dx,0,100);
+    target.y=clamp(target.y+dy,0,100);
+    updatePositionDisplays();
     renderPreview();
   }
 
@@ -228,13 +298,21 @@
     q('#introDisplaySeconds')?.addEventListener('change',e=>config.displaySeconds=Number(e.target.value));
     q('#introShowSkip')?.addEventListener('change',e=>{config.showSkip=e.target.checked;renderPreview();});
 
+    q('#'+CARD_ID)?.addEventListener('click',e=>{
+      const b=e.target.closest?.('[data-nudge-key] button[data-dx]');
+      if(!b)return;
+      const box=b.closest('[data-nudge-key]');
+      nudge(box.dataset.nudgeKey,Number(b.dataset.dx),Number(b.dataset.dy));
+    });
+
     [0,1,2].forEach(i=>{
       q(`#introText${i}`)?.addEventListener('input',e=>{config.texts[i].text=e.target.value;renderPreview();});
       q(`#introTextColor${i}`)?.addEventListener('input',e=>{config.texts[i].color=e.target.value;renderPreview();});
       q(`#introTextSize${i}`)?.addEventListener('input',e=>{config.texts[i].size=Number(e.target.value);syncControls();renderPreview();});
-      q(`#introTextAnimation${i}`)?.addEventListener('change',e=>config.texts[i].animation=e.target.value);
+      q(`#introTextAnimation${i}`)?.addEventListener('change',e=>{config.texts[i].animation=e.target.value;playAnimations();});
       q(`#introTextDelay${i}`)?.addEventListener('input',e=>{config.texts[i].delay=Number(e.target.value);syncControls();});
       q(`#introTextDuration${i}`)?.addEventListener('input',e=>{config.texts[i].duration=Number(e.target.value);syncControls();});
+      q(`#introTextIntensity${i}`)?.addEventListener('input',e=>{config.texts[i].intensity=Number(e.target.value);syncControls();});
       q(`#introTextAlign${i}`)?.addEventListener('click',e=>{const b=e.target.closest('[data-align]');if(!b)return;config.texts[i].align=b.dataset.align;syncControls();renderPreview();});
       q(`#introTextReset${i}`)?.addEventListener('click',()=>{const d=DEFAULT_CONFIG.texts[i];config.texts[i].x=d.x;config.texts[i].y=d.y;syncControls();renderPreview();});
     });
@@ -276,7 +354,8 @@
       imageUrl=row?.intro_media_url||'';
       logoUrl=row?.intro_logo_url||'';
       config=mergeConfig(row?.intro_editor_config);
-      q('#introEditorCard').dataset.enabled=row?.intro_mode==='image'?'1':'0';
+      const card=q('#'+CARD_ID);
+      if(card)card.dataset.enabled=row?.intro_mode==='image'?'1':'0';
       clearObjectFiles();
       syncControls();
       renderPreview();
@@ -289,13 +368,13 @@
   }
 
   function setMode(enabled){
-    const card=q('#introEditorCard');
+    const card=q('#'+CARD_ID);
     if(card)card.dataset.enabled=enabled?'1':'0';
     syncControls();
   }
 
   function syncControls(){
-    const enabled=q('#introEditorCard')?.dataset.enabled==='1';
+    const enabled=q('#'+CARD_ID)?.dataset.enabled==='1';
     q('#introEditorOn')?.classList.toggle('active',enabled);
     q('#introEditorOff')?.classList.toggle('active',!enabled);
     q('#introFitContain')?.classList.toggle('active',config.image.fit==='contain');
@@ -318,8 +397,11 @@
       if(q(`#introTextDelayValue${i}`))q(`#introTextDelayValue${i}`).textContent=`${Number(t.delay).toFixed(1)}초 뒤`;
       if(q(`#introTextDuration${i}`))q(`#introTextDuration${i}`).value=String(t.duration);
       if(q(`#introTextDurationValue${i}`))q(`#introTextDurationValue${i}`).textContent=`${Number(t.duration).toFixed(1)}초`;
+      if(q(`#introTextIntensity${i}`))q(`#introTextIntensity${i}`).value=String(t.intensity);
+      if(q(`#introTextIntensityValue${i}`))q(`#introTextIntensityValue${i}`).textContent=`${Math.round(t.intensity)}%`;
       qa(`#introTextAlign${i} [data-align]`).forEach(b=>b.classList.toggle('active',b.dataset.align===t.align));
     });
+    updatePositionDisplays();
   }
 
   function imageSource(){return imageObjectUrl||imageUrl;}
@@ -380,6 +462,7 @@
       skip.textContent='건너뛰기';
       preview.appendChild(skip);
     }
+    updatePositionDisplays();
   }
 
   function positionBackground(img,preview){
@@ -398,12 +481,25 @@
     img.style.transformOrigin='50% 50%';
   }
 
+  function setFxVars(el,t){
+    const s=clamp(t.intensity??60,0,100)/100;
+    el.style.setProperty('--fx-blur',`${(5+s*15).toFixed(1)}px`);
+    el.style.setProperty('--fx-move',`${(10+s*34).toFixed(1)}px`);
+    el.style.setProperty('--fx-scale',`${(1+s*0.18).toFixed(3)}`);
+    el.style.setProperty('--fx-shadow',`${(5+s*24).toFixed(1)}px`);
+    el.style.setProperty('--fx-stretch',`${(1+s*0.48).toFixed(3)}`);
+  }
+
   function playAnimations(){
     renderPreview();
     config.texts.forEach((t,i)=>{
       const el=q(`[data-intro-overlay="text${i}"]`);
       if(!el||t.animation==='none')return;
-      const names={fade:'introFade','fade-in-out':'introFadeInOut','slide-left':'introSlideLeft','slide-right':'introSlideRight','slide-up':'introSlideUp',zoom:'introZoom'};
+      const names={
+        fade:'introFade','fade-in-out':'introFadeInOut','slide-left':'introSlideLeft','slide-right':'introSlideRight','slide-up':'introSlideUp',zoom:'introZoom',
+        'smoke-out':'introSmokeOut','ink-bleed':'introInkBleed','water-flow':'introWaterFlow'
+      };
+      setFxVars(el,t);
       el.style.animation='none';
       void el.offsetWidth;
       el.style.animation=`${names[t.animation]} ${t.duration}s ease ${t.delay}s both`;
@@ -419,17 +515,17 @@
 
     preview.addEventListener('touchstart',e=>{
       const overlay=e.target.closest?.('[data-intro-overlay]');
-      if(overlay){
+      if(overlay && e.touches.length===1){
         const key=overlay.dataset.introOverlay;
-        setSelected(key);
+        setSelected(key,false);
         const point=e.touches[0];
-        const base=key==='logo'?config.logo:config.texts[Number(key.replace('text',''))];
-        touchState={mode:'overlay',key,x:point.clientX,y:point.clientY,baseX:base.x,baseY:base.y};
+        const base=targetByKey(key);
+        touchState={mode:'overlay',key,element:overlay,x:point.clientX,y:point.clientY,baseX:base.x,baseY:base.y};
         e.preventDefault();
         return;
       }
 
-      setSelected('image');
+      if(selected!=='image')setSelected('image',false);
       if(!imageSource())return;
       if(e.touches.length>=2){
         touchState={mode:'pinch',distance:distance(e.touches[0],e.touches[1]),zoom:config.image.zoom};
@@ -443,11 +539,15 @@
       if(!touchState)return;
       const rect=preview.getBoundingClientRect();
 
-      if(touchState.mode==='overlay'&&e.touches.length){
-        const target=touchState.key==='logo'?config.logo:config.texts[Number(touchState.key.replace('text',''))];
+      if(touchState.mode==='overlay'&&e.touches.length===1){
+        const target=targetByKey(touchState.key);
         target.x=clamp(touchState.baseX+((e.touches[0].clientX-touchState.x)/rect.width)*100,0,100);
         target.y=clamp(touchState.baseY+((e.touches[0].clientY-touchState.y)/rect.height)*100,0,100);
-        renderPreview();
+        if(touchState.element?.isConnected){
+          touchState.element.style.left=`${target.x}%`;
+          touchState.element.style.top=`${target.y}%`;
+        }
+        updatePositionDisplays();
         e.preventDefault();
         return;
       }
@@ -456,24 +556,28 @@
         if(touchState.mode!=='pinch')touchState={mode:'pinch',distance:distance(e.touches[0],e.touches[1]),zoom:config.image.zoom};
         const d=distance(e.touches[0],e.touches[1]);
         if(touchState.distance>0)config.image.zoom=clamp(touchState.zoom*(d/touchState.distance),0.5,4);
-        syncControls();
-        renderPreview();
+        const img=preview.querySelector('.introPreviewImage');
+        if(img)positionBackground(img,preview);
+        if(q('#introZoomValue'))q('#introZoomValue').textContent=`${Math.round(config.image.zoom*100)}%`;
         e.preventDefault();
         return;
       }
 
-      if(e.touches.length===1){
-        if(touchState.mode!=='image-drag')touchState={mode:'image-drag',x:e.touches[0].clientX,y:e.touches[0].clientY,baseX:config.image.x,baseY:config.image.y};
+      if(e.touches.length===1 && touchState.mode==='image-drag'){
         config.image.x=clamp(touchState.baseX+((e.touches[0].clientX-touchState.x)/rect.width)*100,-150,150);
         config.image.y=clamp(touchState.baseY+((e.touches[0].clientY-touchState.y)/rect.height)*100,-150,150);
-        renderPreview();
+        const img=preview.querySelector('.introPreviewImage');
+        if(img)positionBackground(img,preview);
         e.preventDefault();
       }
     },{passive:false});
 
-    const end=()=>{touchState=null;};
-    preview.addEventListener('touchend',end);
-    preview.addEventListener('touchcancel',end);
+    const end=()=>{
+      if(touchState?.mode==='overlay')syncControls();
+      touchState=null;
+    };
+    preview.addEventListener('touchend',end,{passive:true});
+    preview.addEventListener('touchcancel',end,{passive:true});
     window.addEventListener('resize',renderPreview);
   }
 
@@ -545,7 +649,7 @@
     try{
       await ensureClient();
       const id=await getStoreId();
-      const enabled=q('#introEditorCard')?.dataset.enabled==='1';
+      const enabled=q('#'+CARD_ID)?.dataset.enabled==='1';
       const imageFile=q('#introEditorImageFile')?.files?.[0]||null;
       const logoFile=q('#introEditorLogoFile')?.files?.[0]||null;
 
@@ -583,8 +687,8 @@
       logoUrl=nextLogo;
       config=mergeConfig(config);
 
-      q('#introEditorImageFile').value='';
-      q('#introEditorLogoFile').value='';
+      if(q('#introEditorImageFile'))q('#introEditorImageFile').value='';
+      if(q('#introEditorLogoFile'))q('#introEditorLogoFile').value='';
       clearObjectUrlsOnly();
 
       if(uploadedImage && oldImage && oldImage!==imageUrl)removeByUrl(oldImage).catch(()=>{});
