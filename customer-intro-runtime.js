@@ -1,7 +1,8 @@
-/* Smart Store - customer intro runtime v1 */
+/* Smart Store - customer intro runtime v2 (no home flash) */
 (() => {
   const CONFIG = window.SMART_STORE_CONFIG || {};
   const CACHE_KEY = 'smartStoreCloudCacheV1';
+  const READY_CLASS = 'ss-app-ready';
 
   const DEFAULT_CONFIG = {
     image:{fit:'contain',x:0,y:0,zoom:1},
@@ -19,6 +20,15 @@
   const clamp = (n,min,max) => Math.min(max,Math.max(min,Number(n)||0));
 
   let closeTimer = null;
+  let failSafeTimer = null;
+
+  function markAppReady(){
+    document.documentElement.classList.add(READY_CLASS);
+    if(failSafeTimer){
+      clearTimeout(failSafeTimer);
+      failSafeTimer = null;
+    }
+  }
 
   function mergeConfig(raw){
     const next = clone(DEFAULT_CONFIG);
@@ -136,6 +146,7 @@
       intro.classList.add('hidden');
       intro.setAttribute('aria-hidden','true');
     }
+    markAppReady();
   }
 
   function positionImage(img,container,imageCfg){
@@ -157,21 +168,31 @@
 
   async function customerSetupIntro(){
     const intro = document.getElementById('intro');
-    if(!intro) return;
+    if(!intro){
+      markAppReady();
+      return;
+    }
 
-    if(sessionStorage.getItem('introSeen')) return;
+    if(sessionStorage.getItem('introSeen')){
+      markAppReady();
+      return;
+    }
 
     let store;
     try{
       store = await fetchStore();
     }catch(err){
       console.error('[customer intro]',err);
+      markAppReady();
       return;
     }
 
     const mode = store?.intro_mode || 'none';
     const media = store?.intro_media_url || '';
-    if(mode !== 'image' || !media) return;
+    if(mode !== 'image' || !media){
+      markAppReady();
+      return;
+    }
 
     const cfg = mergeConfig(store?.intro_editor_config);
     const logoUrl = store?.intro_logo_url || '';
@@ -255,10 +276,13 @@
 
     window.addEventListener('resize',()=>{
       if(img?.complete) positionImage(img,intro,cfg.image);
-    },{once:false});
+    });
   }
 
-  // app.js의 기존 setupIntro를 새 인트로 렌더러로 교체한다.
+  // index.html의 초기 부트 CSS가 홈을 숨겨둔 상태에서,
+  // 인트로 표시 여부가 결정될 때까지 홈을 절대 노출하지 않는다.
+  failSafeTimer = setTimeout(markAppReady, 8000);
+
   window.setupIntro = customerSetupIntro;
   window.closeIntro = closeCustomerIntro;
 })();
