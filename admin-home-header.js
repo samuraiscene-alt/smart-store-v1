@@ -1,4 +1,4 @@
-/* Smart Store - admin home header editor v1 */
+/* Smart Store - admin home header editor v2: logo size control */
 (() => {
   const CONFIG = window.SMART_STORE_CONFIG || {};
   const CARD_ID = 'adminHomeHeaderCard';
@@ -7,8 +7,10 @@
   let client = null;
   let storeId = null;
   let currentLogoUrl = '';
+  let currentLogoWidth = 42;
 
   const q = s => document.querySelector(s);
+  const clamp = (n,min,max) => Math.min(max,Math.max(min,Number(n)||0));
 
   function addStyles(){
     if(document.getElementById(STYLE_ID)) return;
@@ -22,12 +24,15 @@
         padding:18px;
         text-align:center;
         margin:10px 0 14px;
+        min-height:150px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        overflow:hidden;
       }
       #${CARD_ID} .homeHeaderPreview img{
         display:block;
-        width:auto;
-        max-width:160px;
-        max-height:74px;
+        height:auto;
         object-fit:contain;
         margin:0 auto;
       }
@@ -35,6 +40,29 @@
         color:var(--muted);
         font-size:12px;
         padding:10px 0;
+      }
+      #${CARD_ID} .homeLogoSizeHead{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        margin-top:12px;
+        font-size:13px;
+        font-weight:800;
+      }
+      #${CARD_ID} .homeLogoSizeHead b{
+        color:var(--dark);
+      }
+      #${CARD_ID} .homeLogoSlider{
+        width:100%;
+        margin:8px 0 2px;
+        accent-color:var(--dark);
+      }
+      #${CARD_ID} .homeLogoScaleLabels{
+        display:flex;
+        justify-content:space-between;
+        color:var(--muted);
+        font-size:11px;
       }
       #${CARD_ID} .homeHeaderActions{
         display:grid;
@@ -83,6 +111,13 @@
         <div class="emptyLogo">등록된 로고가 없습니다.</div>
       </div>
 
+      <div class="homeLogoSizeHead">
+        <span>로고 크기</span>
+        <b id="homeLogoSizeValue">42%</b>
+      </div>
+      <input id="homeLogoSize" class="homeLogoSlider" type="range" min="20" max="90" step="1" value="42">
+      <div class="homeLogoScaleLabels"><span>작게</span><span>크게</span></div>
+
       <label class="field">
         <span>상단 로고</span>
         <input id="homeLogoFile" type="file" accept="image/*">
@@ -91,7 +126,7 @@
       <small class="formNote">상호와 한줄 소개는 바로 위 ‘매장 기본정보’의 상호 / 메인 문구와 자동으로 연결됩니다.</small>
 
       <div class="homeHeaderActions">
-        <button id="saveHomeHeader" class="primary">문구 저장</button>
+        <button id="saveHomeHeader" class="primary">문구/크기 저장</button>
         <button id="removeHomeLogo" class="secondary">로고 삭제</button>
       </div>
       <small id="homeHeaderStatus" class="homeHeaderStatus"></small>
@@ -111,11 +146,22 @@
     if(el) el.textContent = text || '';
   }
 
+  function syncSizeUI(){
+    currentLogoWidth = clamp(currentLogoWidth,20,90) || 42;
+    const slider = q('#homeLogoSize');
+    const value = q('#homeLogoSizeValue');
+    if(slider) slider.value = String(currentLogoWidth);
+    if(value) value.textContent = `${currentLogoWidth}%`;
+  }
+
   function renderLogo(){
     const box = q('#homeHeaderPreview');
     if(!box) return;
+
+    syncSizeUI();
+
     if(currentLogoUrl){
-      box.innerHTML = `<img src="${currentLogoUrl}" alt="현재 상단 로고">`;
+      box.innerHTML = `<img src="${currentLogoUrl}" alt="현재 상단 로고" style="width:${currentLogoWidth}%">`;
     }else{
       box.innerHTML = '<div class="emptyLogo">등록된 로고가 없습니다.</div>';
     }
@@ -136,20 +182,28 @@
     const store = data?.store || {};
     storeId = store.id || null;
     currentLogoUrl = store.home_logo_url || '';
+    currentLogoWidth = clamp(store.home_logo_width ?? 42,20,90) || 42;
+
     const welcome = q('#homeWelcomeInput');
     if(welcome) welcome.value = store.home_welcome_label || 'WELCOME';
+
     renderLogo();
     status('');
   }
 
-  async function saveWelcome(){
+  async function saveHeader(){
     const sb = ensureClient();
     if(!sb || !storeId) return;
 
     const value = (q('#homeWelcomeInput')?.value || '').trim() || 'WELCOME';
+    currentLogoWidth = clamp(q('#homeLogoSize')?.value ?? currentLogoWidth,20,90) || 42;
+
     status('저장 중...');
     const {error} = await sb.from('stores')
-      .update({home_welcome_label:value})
+      .update({
+        home_welcome_label:value,
+        home_logo_width:currentLogoWidth
+      })
       .eq('id',storeId);
 
     if(error){
@@ -157,6 +211,8 @@
       status('저장 실패');
       return;
     }
+
+    renderLogo();
     status('저장 완료 ✓');
   }
 
@@ -187,7 +243,10 @@
     const url = urlData?.publicUrl || '';
 
     const {error} = await sb.from('stores')
-      .update({home_logo_url:url})
+      .update({
+        home_logo_url:url,
+        home_logo_width:currentLogoWidth
+      })
       .eq('id',storeId);
 
     if(error){
@@ -226,17 +285,24 @@
     const save = q('#saveHomeHeader');
     const file = q('#homeLogoFile');
     const remove = q('#removeHomeLogo');
+    const slider = q('#homeLogoSize');
 
-    if(save) save.onclick = saveWelcome;
+    if(save) save.onclick = saveHeader;
     if(file) file.onchange = e => uploadLogo(e.target.files?.[0]);
     if(remove) remove.onclick = removeLogo;
+
+    if(slider){
+      slider.oninput = ()=>{
+        currentLogoWidth = clamp(slider.value,20,90) || 42;
+        renderLogo();
+      };
+    }
   }
 
   async function init(){
     addStyles();
     mountCard();
 
-    // admin.js가 로그인 후 관리자 화면을 여는 시간을 고려해 카드와 데이터를 다시 확인한다.
     let tries = 0;
     const timer = setInterval(async()=>{
       tries++;

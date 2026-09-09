@@ -1,8 +1,10 @@
-/* Smart Store - customer compact home header v1 */
+/* Smart Store - customer compact home header v2: adjustable logo size */
 (() => {
   const CONFIG = window.SMART_STORE_CONFIG || {};
   const CACHE_KEY = 'smartStoreCloudCacheV1';
   const STYLE_ID = 'customerHomeHeaderStyle';
+
+  const clamp = (n,min,max) => Math.min(max,Math.max(min,Number(n)||0));
 
   function addStyles(){
     if(document.getElementById(STYLE_ID)) return;
@@ -29,9 +31,9 @@
       }
       .hero.compactHomeHero .homeLogo{
         display:block;
-        width:auto;
-        max-width:168px;
-        max-height:78px;
+        height:auto;
+        max-width:none;
+        max-height:none;
         object-fit:contain;
       }
       .hero.compactHomeHero .homeLogo.hiddenLogo{
@@ -58,7 +60,6 @@
       }
       @media(max-width:380px){
         .hero.compactHomeHero .heroBody{padding:22px 18px 18px}
-        .hero.compactHomeHero .homeLogo{max-width:146px;max-height:66px}
         .hero.compactHomeHero h1{font-size:28px}
       }
     `;
@@ -142,12 +143,16 @@
     if(tagline && store.tagline != null) tagline.textContent = store.tagline || '';
 
     const logoUrl = String(store.home_logo_url || '');
+    const logoWidth = clamp(store.home_logo_width ?? 42,20,90) || 42;
+
     if(ui.logo){
       if(logoUrl){
         ui.logo.src = logoUrl;
+        ui.logo.style.width = `${logoWidth}%`;
         ui.logo.classList.remove('hiddenLogo');
       }else{
         ui.logo.removeAttribute('src');
+        ui.logo.style.removeProperty('width');
         ui.logo.classList.add('hiddenLogo');
       }
     }
