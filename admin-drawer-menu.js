@@ -1,4 +1,4 @@
-/* Smart Store - admin drawer menu v2: safe overlay */
+/* Smart Store - admin drawer menu v2.1: hide legacy summary */
 (() => {
   const STYLE_ID='adminDrawerMenuStyleV2';
   const DRAWER_ID='adminDrawerMenuV2';
@@ -35,6 +35,7 @@
       :root{--adm-card:#fffdfa;--adm-text:#302a28;--adm-brown:#76524d;--adm-brown2:#8d6861;--adm-muted:#94867f;--adm-soft:#f5e9e5;--adm-line:#eadfda;--adm-wait:#b64b4b}
       body.adminBody.admDrawerOpen{overflow:hidden}
       #adminApp .adminTabs{display:none!important}
+      #adminApp .adminSummary{display:none!important}
       #adminApp .adminHeader{display:flex;align-items:center;gap:10px}
       #${OPEN_ID}{width:46px;height:46px;flex:0 0 46px;padding:0;border:1px solid var(--adm-line);border-radius:15px;background:var(--adm-soft);color:var(--adm-brown);display:grid;place-items:center}
       #${OPEN_ID} svg,#${DRAWER_ID} svg,#${DASH_ID} svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
