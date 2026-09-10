@@ -1,9 +1,11 @@
-/* Smart Store - admin drawer menu v2.1: hide legacy summary */
+/* Smart Store - admin drawer menu v2.2: navigation polish + floating home */
 (() => {
   const STYLE_ID='adminDrawerMenuStyleV2';
   const DRAWER_ID='adminDrawerMenuV2';
   const DASH_ID='adminDrawerDashboardV2';
   const OPEN_ID='adminDrawerOpenV2';
+  const HOME_ID='adminFloatingHomeV2';
+  let currentView='dashboard';
 
   const q=s=>document.querySelector(s);
   const qa=s=>[...document.querySelectorAll(s)];
@@ -96,6 +98,52 @@
       .reservationItem.pendingApproval{border-color:#e3b9b9!important;background:#fff9f8!important}
       .reservationItem.pendingApproval .reservationSelect{color:var(--adm-wait)!important;font-weight:800!important}
       .reservationSelect,.reservationStatus{color:var(--adm-brown)!important}
+
+      #${HOME_ID}{
+        position:fixed;
+        left:50%;
+        bottom:calc(18px + env(safe-area-inset-bottom));
+        z-index:100150;
+        width:62px;
+        height:62px;
+        padding:0;
+        border:1px solid rgba(255,255,255,.58);
+        border-radius:50%;
+        background:rgba(118,82,77,.80);
+        color:#fff;
+        box-shadow:0 10px 28px rgba(55,38,34,.18);
+        backdrop-filter:blur(12px);
+        -webkit-backdrop-filter:blur(12px);
+        transform:translate(-50%,12px) scale(.94);
+        opacity:0;
+        pointer-events:none;
+        transition:opacity .18s ease,transform .18s ease;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:1px;
+      }
+      #${HOME_ID}.show{
+        opacity:1;
+        pointer-events:auto;
+        transform:translate(-50%,0) scale(1);
+      }
+      #${HOME_ID} svg{
+        width:20px;
+        height:20px;
+        fill:none;
+        stroke:currentColor;
+        stroke-width:1.9;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+      }
+      #${HOME_ID} span{
+        font-size:10px;
+        line-height:1;
+        font-weight:750;
+        letter-spacing:-.02em;
+      }
       @media(max-width:430px){#adminApp .adminHeaderActions .secondary{display:none}}
     `;
     document.head.appendChild(s);
@@ -114,7 +162,7 @@
       if(e.target.closest('[data-close]')){closeDrawer();return}
       const b=e.target.closest('[data-action]');if(!b)return;
       const a=b.dataset.action;
-      if(a==='logout'){q('#logoutButton')?.click();closeDrawer();return}
+      if(a==='logout'){currentView='dashboard';q('#logoutButton')?.click();closeDrawer();updateHomeButton();return}
       activate(a);closeDrawer();
     });
   }
@@ -123,6 +171,27 @@
     if(q('#'+OPEN_ID))return;
     const h=q('#adminApp .adminHeader');if(!h)return;
     const b=document.createElement('button');b.id=OPEN_ID;b.type='button';b.innerHTML=svg.menu;b.setAttribute('aria-label','관리자 메뉴 열기');b.onclick=openDrawer;h.insertBefore(b,h.firstChild);
+  }
+
+  function ensureHomeButton(){
+    if(q('#'+HOME_ID))return;
+    const b=document.createElement('button');
+    b.id=HOME_ID;
+    b.type='button';
+    b.setAttribute('aria-label','대시보드 홈으로 이동');
+    b.innerHTML=`${svg.home}<span>홈</span>`;
+    b.addEventListener('click',()=>activate('dashboard'));
+    document.body.appendChild(b);
+  }
+
+  function updateHomeButton(){
+    const b=q('#'+HOME_ID);
+    if(!b)return;
+    const app=q('#adminApp');
+    const appVisible=app&&!app.classList.contains('hidden');
+    const drawerOpen=q('#'+DRAWER_ID)?.classList.contains('open');
+    const show=appVisible&&currentView!=='dashboard'&&!drawerOpen;
+    b.classList.toggle('show',!!show);
   }
 
   function ensureDashboard(){
@@ -141,8 +210,8 @@
     });
   }
 
-  function openDrawer(){refreshDashboard();q('#'+DRAWER_ID)?.classList.add('open');document.body.classList.add('admDrawerOpen')}
-  function closeDrawer(){q('#'+DRAWER_ID)?.classList.remove('open');document.body.classList.remove('admDrawerOpen')}
+  function openDrawer(){refreshDashboard();q('#'+DRAWER_ID)?.classList.add('open');document.body.classList.add('admDrawerOpen');updateHomeButton()}
+  function closeDrawer(){q('#'+DRAWER_ID)?.classList.remove('open');document.body.classList.remove('admDrawerOpen');updateHomeButton()}
   function clickTab(name){const b=q(`.adminTabs [data-tab="${name}"]`);if(b){b.click();return true}return false}
   function setActive(a){qa(`#${DRAWER_ID} [data-action]`).forEach(b=>b.classList.toggle('active',b.dataset.action===a))}
   function clearSub(){qa('.admSubnav').forEach(x=>x.remove())}
@@ -155,10 +224,40 @@
 
   function activate(a){
     clearSub();
-    if(a==='dashboard'){qa('.adminPanel').forEach(p=>p.classList.remove('active'));q('#'+DASH_ID)?.classList.add('active');setActive(a);refreshDashboard();window.scrollTo({top:0,behavior:'smooth'});return}
-    if(a==='customer-screen'){clickTab('store');setActive(a);setTimeout(()=>{(q('#adminHomeHeaderCard')||q('#adminIntroEditorCard'))?.scrollIntoView({behavior:'smooth',block:'start'})},140);return}
-    if(a==='policy'){clickTab('reservations');setActive(a);setTimeout(()=>q('#adminCustomerCancelPolicyCard')?.scrollIntoView({behavior:'smooth',block:'start'}),140);return}
-    clickTab(a);setActive(a);if(a==='services')subnav('services');if(a==='store')subnav('store');window.scrollTo({top:0,behavior:'smooth'});
+    currentView=a;
+
+    if(a==='dashboard'){
+      qa('.adminPanel').forEach(p=>p.classList.remove('active'));
+      q('#'+DASH_ID)?.classList.add('active');
+      setActive(a);
+      refreshDashboard();
+      updateHomeButton();
+      window.scrollTo({top:0,behavior:'smooth'});
+      return;
+    }
+
+    if(a==='customer-screen'){
+      clickTab('store');
+      setActive(a);
+      updateHomeButton();
+      setTimeout(()=>{(q('#adminHomeHeaderCard')||q('#adminIntroEditorCard'))?.scrollIntoView({behavior:'smooth',block:'start'})},140);
+      return;
+    }
+
+    if(a==='policy'){
+      clickTab('reservations');
+      setActive(a);
+      updateHomeButton();
+      setTimeout(()=>q('#adminCustomerCancelPolicyCard')?.scrollIntoView({behavior:'smooth',block:'start'}),140);
+      return;
+    }
+
+    clickTab(a);
+    setActive(a);
+    if(a==='services')subnav('services');
+    if(a==='store')subnav('store');
+    updateHomeButton();
+    window.scrollTo({top:0,behavior:'smooth'});
   }
 
   function kstToday(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const g=t=>p.find(x=>x.type===t)?.value||'';return `${g('year')}-${g('month')}-${g('day')}`}
@@ -172,7 +271,7 @@
   }
 
   function install(){
-    addStyles();ensureDrawer();ensureOpen();ensureDashboard();
+    addStyles();ensureDrawer();ensureOpen();ensureHomeButton();ensureDashboard();
     const app=q('#adminApp');
     if(app&&!app.classList.contains('hidden')){activate('dashboard');return}
     if(app){const ob=new MutationObserver(()=>{if(!app.classList.contains('hidden')){ob.disconnect();setTimeout(()=>activate('dashboard'),100)}});ob.observe(app,{attributes:true,attributeFilter:['class']})}
