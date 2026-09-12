@@ -40,4 +40,8 @@ if (isAdminPage) {
   adminSafeAreaStyle.rel = 'stylesheet';
   adminSafeAreaStyle.href = 'admin-safe-area-fix.css?v=20260912-1';
   document.head.appendChild(adminSafeAreaStyle);
+  const adminStoreManagerScript = document.createElement('script');
+adminStoreManagerScript.src = 'admin-store-manager.js?v=20260912-1';
+adminStoreManagerScript.defer = true;
+document.head.appendChild(adminStoreManagerScript);
 }
