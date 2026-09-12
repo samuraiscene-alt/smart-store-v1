@@ -1,0 +1,15 @@
+/* Smart Store - admin PWA safe-area fix */
+@media (display-mode: standalone) {
+  #adminApp .adminHeader {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 14px) !important;
+    margin-top: 0 !important;
+    position: relative;
+    z-index: 20;
+  }
+
+  #adminDrawerOpenV2 {
+    position: relative;
+    z-index: 21;
+    touch-action: manipulation;
+  }
+}

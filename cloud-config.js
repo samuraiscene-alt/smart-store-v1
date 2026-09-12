@@ -15,4 +15,9 @@ if (location.pathname.endsWith('/admin.html') || location.pathname.endsWith('adm
   reservationEditFixScript.src = 'admin-reservation-edit-fix.js?v=20260911-1';
   reservationEditFixScript.defer = true;
   document.head.appendChild(reservationEditFixScript);
+
+  const adminSafeAreaStyle = document.createElement('link');
+  adminSafeAreaStyle.rel = 'stylesheet';
+  adminSafeAreaStyle.href = 'admin-safe-area-fix.css?v=20260912-1';
+  document.head.appendChild(adminSafeAreaStyle);
 }
