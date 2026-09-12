@@ -15,9 +15,4 @@ if (location.pathname.endsWith('/admin.html') || location.pathname.endsWith('adm
   reservationEditFixScript.src = 'admin-reservation-edit-fix.js?v=20260911-1';
   reservationEditFixScript.defer = true;
   document.head.appendChild(reservationEditFixScript);
-
-  const adminUiFixScript = document.createElement('script');
-  adminUiFixScript.src = 'admin-ui-fix.js?v=20260912-1';
-  adminUiFixScript.defer = true;
-  document.head.appendChild(adminUiFixScript);
 }
