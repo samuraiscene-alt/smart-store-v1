@@ -1,10 +1,11 @@
 /* Smart Store - customer multi booking + phone verified cross-device lookup */
 (() => {
-  const RESERVATION_KEY = 'smartStoreLastReservationId';
-  const CANCEL_TOKEN_KEY = 'smartStoreLastCancelToken';
-  const HISTORY_KEY = 'smartStoreReservationHistoryV1';
-  const TOKEN_MAP_KEY = 'smartStoreReservationCancelTokensV1';
-  const AUTH_STORAGE_KEY = 'smartStoreCustomerPhoneAuthV1';
+  const STORE_KEY_SUFFIX = encodeURIComponent(window.SMART_STORE_CONFIG?.storeSlug||'default');
+  const RESERVATION_KEY = `smartStoreLastReservationId:${STORE_KEY_SUFFIX}`;
+  const CANCEL_TOKEN_KEY = `smartStoreLastCancelToken:${STORE_KEY_SUFFIX}`;
+  const HISTORY_KEY = `smartStoreReservationHistoryV1:${STORE_KEY_SUFFIX}`;
+  const TOKEN_MAP_KEY = `smartStoreReservationCancelTokensV1:${STORE_KEY_SUFFIX}`;
+  const AUTH_STORAGE_KEY = `smartStoreCustomerPhoneAuthV1:${STORE_KEY_SUFFIX}`;
   const DAYS = ['일','월','화','수','목','금','토'];
 
   let detailSb = null;
