@@ -23,7 +23,10 @@ window.SMART_STORE_CONFIG = Object.freeze({
   supabaseKey: 'sb_publishable_FYc-zUVTUjsWIIA1LO6gng_M0NpFqSt',
   storeSlug: resolvedStoreSlug
 });
-
+const pwaManifestScript = document.createElement('script');
+pwaManifestScript.src = 'pwa-manifest-runtime.js?v=20260912-1';
+pwaManifestScript.defer = true;
+document.head.appendChild(pwaManifestScript);
 // 관리자 페이지 전용 추가 스크립트
 if (isAdminPage) {
   const googleCalendarScript = document.createElement('script');
