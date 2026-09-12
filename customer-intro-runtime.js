@@ -1,7 +1,8 @@
 /* Smart Store - customer intro runtime v3: advanced text effects */
 (() => {
   const CONFIG = window.SMART_STORE_CONFIG || {};
-  const CACHE_KEY = 'smartStoreCloudCacheV1';
+  const CACHE_KEY = `smartStoreCloudCacheV1:${encodeURIComponent(CONFIG.storeSlug||'default')}`;
+ const INTRO_SEEN_KEY = `introSeen:${encodeURIComponent(CONFIG.storeSlug||'default')}`;
   const READY_CLASS = 'ss-app-ready';
   const ANIMATIONS = [
     'none','fade','fade-in-out','slide-left','slide-right','slide-up','zoom',
@@ -239,7 +240,7 @@
       closeTimer = null;
     }
 
-    try{ sessionStorage.setItem('introSeen','1'); }catch{}
+    try{ sessionStorage.setItem(INTRO_SEEN_KEY,'1'); }catch{}
 
     const intro = document.getElementById('intro');
     if(intro){
@@ -286,7 +287,7 @@
       return;
     }
 
-    if(sessionStorage.getItem('introSeen')){
+    if(sessionStorage.getItem(INTRO_SEEN_KEY)){
       markAppReady();
       return;
     }
