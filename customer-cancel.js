@@ -3,11 +3,12 @@
   const cfg = window.SMART_STORE_CONFIG;
   if (!cfg || !window.supabase) return;
 
+  const STORE_KEY_SUFFIX = encodeURIComponent(cfg.storeSlug||'default');
   const sbCancel = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
   const DB_NAME = 'smart-store-push-open-v1';
   const STORE_NAME = 'kv';
-  const PENDING_KEY = 'customerReservation';
-  const ACK_PREFIX = 'smartStoreReservationAck:';
+  const PENDING_KEY = `customerReservation:${STORE_KEY_SUFFIX}`;
+  const ACK_PREFIX = `smartStoreReservationAck:${STORE_KEY_SUFFIX}:`;
   const DAYS = ['일','월','화','수','목','금','토'];
 
   let showing = false;
