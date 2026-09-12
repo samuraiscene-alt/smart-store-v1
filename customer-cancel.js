@@ -254,8 +254,8 @@
   navigator.serviceWorker?.addEventListener('message', event => {
     if (
       event.data?.type === 'smart-store-open-reservation' &&
-      event.data?.event_type === 'cancelled'
-      event.data?.store_slug === cfg.storeSlug
+      event.data?.event_type === 'cancelled' &&
+event.data?.store_slug === cfg.storeSlug
     ) {
       openCancelledReservation(
         event.data.reservation_id || '',
