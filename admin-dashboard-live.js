@@ -172,7 +172,34 @@
       setTimeout(() => refresh({force:true}), 180);
     }
   });
+function startInitialSync(){
+  let tries = 0;
 
+  const initTimer = setInterval(() => {
+    tries++;
+
+    if(
+      dashboardVisible() &&
+      typeof data !== 'undefined' &&
+      data?.store?.id
+    ){
+      clearInterval(initTimer);
+      updateDashboardFromData();
+      setTimeout(() => refresh({force:true}), 120);
+      return;
+    }
+
+    if(tries >= 80){
+      clearInterval(initTimer);
+    }
+  },250);
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded',startInitialSync,{once:true});
+}else{
+  startInitialSync();
+}
   window.addEventListener('beforeunload', () => {
     clearInterval(timer);
   });
