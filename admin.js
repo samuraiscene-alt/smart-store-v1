@@ -1,8 +1,10 @@
 const DAYS=['일','월','화','수','목','금','토'];
-const KEY='smartStoreV1';
 const CONFIG=window.SMART_STORE_CONFIG;
-const sb=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
 const STORE_SLUG=CONFIG.storeSlug;
+const KEY=STORE_SLUG==='snail-demo'?'smartStoreV1':`smartStoreV1:${encodeURIComponent(STORE_SLUG||'default')}`;
+const CLOUD_IMPORTED_KEY=`smartStoreCloudImported:${encodeURIComponent(STORE_SLUG||'default')}`;
+const sb=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
+
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=n=>Number(n||0).toLocaleString('ko-KR')+'원';
 const timeHHMM=v=>String(v||'').slice(0,5);
@@ -89,7 +91,12 @@ async function loadAdminData(){
   data.customers=(customersR.data||[]).map(c=>({id:c.id,name:c.name,phone:c.phone,memo:c.memo||'',archivedAt:c.archived_at,createdAt:c.created_at}));
   data.reservations=(resR.data||[]).map(r=>({id:r.id,customerId:r.customer_id,serviceId:r.service_id,staffId:r.staff_id,staffAny:r.staff_any,date:r.reservation_date,time:timeHHMM(r.reservation_time),duration:Number(r.duration_minutes||30),serviceName:r.service_name,staffName:r.staff_name||'',price:Number(r.price||0),status:r.status,customerName:r.customers?.name||'',customerPhone:r.customers?.phone||'',createdAt:r.created_at}));
   renderAll();showAdminMessage(`연결됨 · ${data.store.name}`);
-  $('#importLocalData').classList.toggle('hidden',!localBackup()||localStorage.getItem('smartStoreCloudImported')==='1');
+$('#importLocalData').classList.toggle(
+  'hidden',
+  STORE_SLUG!=='snail-demo' ||
+  !localBackup() ||
+  localStorage.getItem(CLOUD_IMPORTED_KEY)==='1'
+);
 }
 
 function serviceNamesForStaff(st){const names=(st.services||[]).map(id=>data.services.find(s=>s.id===id)?.name).filter(Boolean);return names.length?names.join(' · '):'없음'}
@@ -216,7 +223,7 @@ async function importLocalData(){
       const serviceId=serviceMap.get(r.serviceId)||null,staffAny=r.staffId==='any'||!r.staffId,staffId=staffAny?null:(staffMap.get(r.staffId)||null);
       const x=await sb.from('reservations').insert({store_id:storeId,customer_id:cust.id,service_id:serviceId,staff_id:staffId,staff_any:staffAny,reservation_date:r.date,reservation_time:r.time,duration_minutes:Number(r.duration||30),service_name:r.serviceName||old.services?.find(s=>s.id===r.serviceId)?.name||'서비스',staff_name:staffAny?'상관없음':(r.staffName||''),price:Number(r.price||0),status:['예약대기','예약확정','방문완료','취소','노쇼'].includes(r.status)?r.status:'예약확정'});if(x.error)throw x.error;
     }
-    localStorage.setItem('smartStoreCloudImported','1');await loadAdminData();showAdminMessage('기기 데이터 이전 완료 ✓');
+    localStorage.setItem(CLOUD_IMPORTED_KEY,'1');await loadAdminData();showAdminMessage('기기 데이터 이전 완료 ✓');
   }catch(err){console.error(err);alert('데이터 이전 중 오류: '+(err.message||err));showAdminMessage('데이터 이전 실패')}
 }
 
