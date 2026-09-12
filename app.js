@@ -2,7 +2,11 @@ const DAYS=['일','월','화','수','목','금','토'];
 const CONFIG=window.SMART_STORE_CONFIG;
 const sb=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
 const STORE_SLUG=CONFIG.storeSlug;
-const CLOUD_CACHE_KEY='smartStoreCloudCacheV1';
+const STORE_KEY_SUFFIX=encodeURIComponent(STORE_SLUG||'default');
+const CLOUD_CACHE_KEY=`smartStoreCloudCacheV1:${STORE_KEY_SUFFIX}`;
+const INTRO_SEEN_KEY=`introSeen:${STORE_KEY_SUFFIX}`;
+const LAST_RESERVATION_KEY=`smartStoreLastReservationId:${STORE_KEY_SUFFIX}`;
+const LAST_CANCEL_TOKEN_KEY=`smartStoreLastCancelToken:${STORE_KEY_SUFFIX}`;
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=n=>Number(n||0).toLocaleString('ko-KR')+'원';
 
@@ -85,14 +89,14 @@ function render(){
 
 function setupIntro(){
   const intro=$('#intro'),mode=data.store.introMode;
-  if(mode==='none'||sessionStorage.getItem('introSeen'))return;
+  if(mode==='none'||sessionStorage.getItem(INTRO_SEEN_KEY))return;
   intro.classList.remove('hidden');intro.setAttribute('aria-hidden','false');
   const video=$('#introVideo'),img=$('#introImage');video.style.display='none';img.style.display='none';
   if(mode==='video'&&data.store.introMedia){video.src=data.store.introMedia;video.style.display='block';video.play().catch(()=>{});video.onended=closeIntro;setTimeout(closeIntro,6000)}
   else if(mode==='image'&&data.store.introMedia){img.src=data.store.introMedia;img.style.display='block';setTimeout(closeIntro,3500)}
   else setTimeout(closeIntro,1200);
 }
-function closeIntro(){sessionStorage.setItem('introSeen','1');$('#intro').classList.add('hidden')}
+function closeIntro(){sessionStorage.setItem(INTRO_SEEN_KEY,'1');$('#intro').classList.add('hidden')}
 $('#skipIntro').onclick=closeIntro;
 
 let booking={step:1,serviceId:null,staffId:null,date:null,time:null};
@@ -228,8 +232,8 @@ const savedStatus=result?.status||'예약확정';
 
 if(reservationId){
   try{
-    localStorage.setItem('smartStoreLastReservationId',reservationId);
-    if(cancelToken)localStorage.setItem('smartStoreLastCancelToken',cancelToken);
+    localStorage.setItem(LAST_RESERVATION_KEY,reservationId);
+if(cancelToken)localStorage.setItem(LAST_CANCEL_TOKEN_KEY,cancelToken);
   }catch{}
   window.SmartStorePush?.sendNewReservation(reservationId);
 }
@@ -339,8 +343,8 @@ if(cancelBtn){
     }
 
     try{
-      localStorage.removeItem('smartStoreLastReservationId');
-      localStorage.removeItem('smartStoreLastCancelToken');
+      localStorage.removeItem(LAST_RESERVATION_KEY);
+localStorage.removeItem(LAST_CANCEL_TOKEN_KEY);
     }catch{}
 
     availabilityCache.delete(booking.date);
