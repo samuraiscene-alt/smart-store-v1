@@ -1,18 +1,31 @@
-/* Smart Store - multi store manager v1 */
+/* Smart Store - multi store manager v2 */
 (() => {
-  if (window.__smartStoreManagerV1) return;
-  window.__smartStoreManagerV1 = true;
+  if (window.__smartStoreManagerV2) return;
+  window.__smartStoreManagerV2 = true;
 
   const CONFIG = window.SMART_STORE_CONFIG || {};
-  const STYLE_ID = 'adminStoreManagerStyleV1';
-  const MODAL_ID = 'adminStoreManagerModalV1';
+  const STYLE_ID = 'adminStoreManagerStyleV2';
+  const MODAL_ID = 'adminStoreManagerModalV2';
+  const SWITCHER_ID = 'adminStoreSwitcherV2';
 
   let sb = null;
+  let stores = [];
 
   const q = s => document.querySelector(s);
 
+  function esc(v='') {
+    return String(v).replace(/[&<>"']/g, ch => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[ch]));
+  }
+
   function ensureClient() {
     if (sb) return sb;
+
     if (
       !window.supabase?.createClient ||
       !CONFIG.supabaseUrl ||
@@ -32,7 +45,96 @@
 
     const style = document.createElement('style');
     style.id = STYLE_ID;
+
     style.textContent = `
+      #${SWITCHER_ID}{
+        margin:8px 0 12px;
+        padding:12px;
+        border:1px solid #eadfda;
+        border-radius:18px;
+        background:#fffdfa;
+      }
+
+      #${SWITCHER_ID} .title{
+        margin-bottom:9px;
+        color:#94867f;
+        font-size:11px;
+        font-weight:800;
+        letter-spacing:.08em;
+      }
+
+      #${SWITCHER_ID} .stores{
+        display:grid;
+        gap:7px;
+      }
+
+      #${SWITCHER_ID} .storeBtn{
+        width:100%;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        padding:11px 12px;
+        border:1px solid #eadfda;
+        border-radius:14px;
+        background:#fff;
+        color:#302a28;
+        text-align:left;
+      }
+
+      #${SWITCHER_ID} .storeBtn.current{
+        background:#f5e9e5;
+        border-color:#d8b8b0;
+      }
+
+      #${SWITCHER_ID} .storeText{
+        min-width:0;
+      }
+
+      #${SWITCHER_ID} .storeText b{
+        display:block;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        font-size:13px;
+      }
+
+      #${SWITCHER_ID} .storeText small{
+        display:block;
+        margin-top:3px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        color:#94867f;
+        font-size:10px;
+      }
+
+      #${SWITCHER_ID} .check{
+        flex:0 0 auto;
+        color:#76524d;
+        font-size:16px;
+        font-weight:900;
+      }
+
+      #${SWITCHER_ID} .loading{
+        padding:8px 2px;
+        color:#94867f;
+        font-size:11px;
+      }
+
+      .adminStoreManagerButtonV2{
+        width:100%;
+        margin-top:8px;
+        padding:13px 14px;
+        border:1px solid #eadfda;
+        border-radius:16px;
+        background:#fffdfa;
+        color:#76524d;
+        font-size:14px;
+        font-weight:800;
+        text-align:left;
+      }
+
       #${MODAL_ID}{
         position:fixed;
         inset:0;
@@ -136,18 +238,6 @@
         font-size:12px;
         text-align:center;
       }
-
-      .adminStoreManagerButtonV1{
-        width:100%;
-        padding:13px 14px;
-        border:1px solid #eadfda;
-        border-radius:16px;
-        background:#fffdfa;
-        color:#76524d;
-        font-size:14px;
-        font-weight:800;
-        text-align:left;
-      }
     `;
 
     document.head.appendChild(style);
@@ -169,7 +259,7 @@
         <label>
           <span>매장명</span>
           <input
-            id="newStoreNameV1"
+            id="newStoreNameV2"
             maxlength="80"
             placeholder="예: JOON NAIL"
           >
@@ -178,7 +268,7 @@
         <label>
           <span>매장 주소 ID</span>
           <input
-            id="newStoreSlugV1"
+            id="newStoreSlugV2"
             maxlength="48"
             autocapitalize="none"
             autocomplete="off"
@@ -202,6 +292,7 @@
     document.body.appendChild(modal);
 
     modal.querySelector('.close').onclick = closeModal;
+
     modal.addEventListener('click', e => {
       if (e.target === modal) closeModal();
     });
@@ -212,14 +303,14 @@
   function openModal() {
     mountModal();
 
-    q('#newStoreNameV1').value = '';
-    q('#newStoreSlugV1').value = '';
+    q('#newStoreNameV2').value = '';
+    q('#newStoreSlugV2').value = '';
     q(`#${MODAL_ID} .status`).textContent = '';
 
     q(`#${MODAL_ID}`).classList.add('open');
 
     setTimeout(() => {
-      q('#newStoreNameV1')?.focus();
+      q('#newStoreNameV2')?.focus();
     }, 100);
   }
 
@@ -227,15 +318,154 @@
     q(`#${MODAL_ID}`)?.classList.remove('open');
   }
 
+  async function loadStores() {
+    const client = ensureClient();
+    if (!client) return;
+
+    const box = q(`#${SWITCHER_ID} .stores`);
+
+    if (box) {
+      box.innerHTML =
+        '<div class="loading">매장 목록 불러오는 중...</div>';
+    }
+
+    const { data, error } = await client
+      .from('stores')
+      .select('id,name,slug,is_active')
+      .eq('is_active', true)
+      .order('name');
+
+    if (error) {
+      if (box) {
+        box.innerHTML =
+          '<div class="loading">매장 목록을 불러오지 못했습니다.</div>';
+      }
+      return;
+    }
+
+    stores = Array.isArray(data) ? data : [];
+    renderStores();
+  }
+
+  function renderStores() {
+    const box = q(`#${SWITCHER_ID} .stores`);
+    if (!box) return;
+
+    if (!stores.length) {
+      box.innerHTML =
+        '<div class="loading">연결된 매장이 없습니다.</div>';
+      return;
+    }
+
+    box.innerHTML = stores.map(store => {
+      const current =
+        store.slug === CONFIG.storeSlug;
+
+      return `
+        <button
+          type="button"
+          class="storeBtn ${current ? 'current' : ''}"
+          data-store-slug="${esc(store.slug)}"
+        >
+          <span class="storeText">
+            <b>${esc(store.name)}</b>
+            <small>${esc(store.slug)}</small>
+          </span>
+
+          <span class="check">
+            ${current ? '✓' : '›'}
+          </span>
+        </button>
+      `;
+    }).join('');
+
+    box.querySelectorAll('[data-store-slug]')
+      .forEach(button => {
+        button.onclick = () => {
+          const slug =
+            button.dataset.storeSlug;
+
+          if (!slug || slug === CONFIG.storeSlug) {
+            return;
+          }
+
+          localStorage.setItem(
+            'smartStoreAdminSlug',
+            slug
+          );
+
+          location.href =
+            `admin.html?store=${encodeURIComponent(slug)}`;
+        };
+      });
+  }
+
+  function mountManager() {
+    if (document.getElementById(SWITCHER_ID)) return;
+
+    const drawer =
+      document.querySelector(
+        '#adminDrawerMenuV2 .panel'
+      );
+
+    if (!drawer) return;
+
+    const wrapper =
+      document.createElement('div');
+
+    wrapper.id = SWITCHER_ID;
+
+    wrapper.innerHTML = `
+      <div class="title">매장 전환</div>
+      <div class="stores">
+        <div class="loading">
+          매장 목록 불러오는 중...
+        </div>
+      </div>
+    `;
+
+    const createButton =
+      document.createElement('button');
+
+    createButton.type = 'button';
+    createButton.className =
+      'adminStoreManagerButtonV2';
+
+    createButton.textContent =
+      '+ 새 매장 만들기';
+
+    createButton.onclick = openModal;
+
+    const foot =
+      drawer.querySelector('.foot');
+
+    if (foot) {
+      foot.parentNode.insertBefore(
+        wrapper,
+        foot
+      );
+
+      foot.parentNode.insertBefore(
+        createButton,
+        foot
+      );
+    } else {
+      drawer.appendChild(wrapper);
+      drawer.appendChild(createButton);
+    }
+
+    loadStores();
+  }
+
   async function createStore() {
     const client = ensureClient();
     if (!client) return;
 
     const name =
-      q('#newStoreNameV1')?.value.trim() || '';
+      q('#newStoreNameV2')?.value.trim() || '';
 
     const slug =
-      q('#newStoreSlugV1')?.value
+      q('#newStoreSlugV2')?.value
         .trim()
         .toLowerCase() || '';
 
@@ -246,24 +476,28 @@
       q(`#${MODAL_ID} .create`);
 
     if (!name) {
-      status.textContent = '매장명을 입력해주세요.';
+      status.textContent =
+        '매장명을 입력해주세요.';
       return;
     }
 
     button.disabled = true;
-    status.textContent = '새 매장을 만드는 중...';
+    status.textContent =
+      '새 매장을 만드는 중...';
 
-    const { data, error } = await client.rpc(
-      'create_store_for_current_user',
-      {
-        p_name: name,
-        p_slug: slug || null
-      }
-    );
+    const { data, error } =
+      await client.rpc(
+        'create_store_for_current_user',
+        {
+          p_name:name,
+          p_slug:slug || null
+        }
+      );
 
     if (error) {
       status.textContent =
-        error.message || '매장 생성에 실패했습니다.';
+        error.message ||
+        '매장 생성에 실패했습니다.';
       button.disabled = false;
       return;
     }
@@ -288,46 +522,7 @@
     setTimeout(() => {
       location.href =
         `admin.html?store=${encodeURIComponent(newSlug)}`;
-    }, 700);
-  }
-
-  function mountButton() {
-    if (
-      document.querySelector(
-        '.adminStoreManagerButtonV1'
-      )
-    ) return;
-
-    const drawer =
-      document.querySelector(
-        '#adminDrawerMenuV2 .panel'
-      );
-
-    if (!drawer) return;
-
-    const button =
-      document.createElement('button');
-
-    button.type = 'button';
-    button.className =
-      'adminStoreManagerButtonV1';
-
-    button.textContent =
-      '+ 새 매장 만들기';
-
-    button.onclick = openModal;
-
-    const foot =
-      drawer.querySelector('.foot');
-
-    if (foot) {
-      foot.parentNode.insertBefore(
-        button,
-        foot
-      );
-    } else {
-      drawer.appendChild(button);
-    }
+    },700);
   }
 
   function init() {
@@ -338,17 +533,15 @@
 
     const timer = setInterval(() => {
       tries++;
-      mountButton();
+      mountManager();
 
       if (
-        document.querySelector(
-          '.adminStoreManagerButtonV1'
-        ) ||
+        document.getElementById(SWITCHER_ID) ||
         tries >= 40
       ) {
         clearInterval(timer);
       }
-    }, 250);
+    },250);
   }
 
   if (document.readyState === 'loading') {
