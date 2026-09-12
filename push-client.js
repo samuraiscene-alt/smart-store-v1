@@ -7,6 +7,7 @@
   }
 
   const PUSH_STORE_SLUG = PUSH_CONFIG.storeSlug;
+  const PUSH_LAST_RESERVATION_KEY = `smartStoreLastReservationId:${encodeURIComponent(PUSH_STORE_SLUG||'default')}`;
   const pushSb = window.supabase.createClient(PUSH_CONFIG.supabaseUrl, PUSH_CONFIG.supabaseKey);
   const FUNCTION_URL = `${PUSH_CONFIG.supabaseUrl}/functions/v1/send-push`;
   const SERVICE_WORKER_URL = 'service-worker.js?v=20260905-1';
@@ -126,7 +127,7 @@
 
   async function subscribeCustomer(reservationId){
     if(!reservationId)throw new Error('예약 정보를 찾을 수 없습니다.');
-    try{localStorage.setItem('smartStoreLastReservationId',reservationId)}catch{}
+    try{localStorage.setItem(PUSH_LAST_RESERVATION_KEY,reservationId)}catch{}
 
     const sub=await getSubscription();
     const f=subscriptionFields(sub);
