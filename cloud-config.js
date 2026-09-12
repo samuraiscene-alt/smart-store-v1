@@ -1,11 +1,31 @@
+const isAdminPage =
+  location.pathname.endsWith('/admin.html') ||
+  location.pathname.endsWith('admin.html');
+
+const storeSlugParam =
+  new URLSearchParams(location.search).get('store')?.trim();
+
+const storeSlugStorageKey = isAdminPage
+  ? 'smartStoreAdminSlug'
+  : 'smartStoreCustomerSlug';
+
+if (storeSlugParam) {
+  localStorage.setItem(storeSlugStorageKey, storeSlugParam);
+}
+
+const resolvedStoreSlug =
+  storeSlugParam ||
+  localStorage.getItem(storeSlugStorageKey) ||
+  'snail-demo';
+
 window.SMART_STORE_CONFIG = Object.freeze({
   supabaseUrl: 'https://jfjxgyclgzxvuwncjork.supabase.co',
   supabaseKey: 'sb_publishable_FYc-zUVTUjsWIIA1LO6gng_M0NpFqSt',
-  storeSlug: 'snail-demo'
+  storeSlug: resolvedStoreSlug
 });
 
 // 관리자 페이지 전용 추가 스크립트
-if (location.pathname.endsWith('/admin.html') || location.pathname.endsWith('admin.html')) {
+if (isAdminPage) {
   const googleCalendarScript = document.createElement('script');
   googleCalendarScript.src = 'google-calendar.js?v=20260905-1';
   googleCalendarScript.defer = true;
