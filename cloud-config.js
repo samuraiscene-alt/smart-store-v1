@@ -44,4 +44,8 @@ if (isAdminPage) {
 adminStoreManagerScript.src = 'admin-store-manager.js?v=20260912-1';
 adminStoreManagerScript.defer = true;
 document.head.appendChild(adminStoreManagerScript);
+const appIconSettingsScript = document.createElement('script');
+appIconSettingsScript.src = 'admin-app-icon-settings.js?v=20260912-1';
+appIconSettingsScript.defer = true;
+document.head.appendChild(appIconSettingsScript);
 }
