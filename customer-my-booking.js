@@ -986,19 +986,34 @@
   }
 
   async function fetchReservation(id){
-    const client = getClient();
+  const client = getClient();
 
-    if(!client){
-      throw new Error('예약 조회 기능을 준비하지 못했습니다.');
-    }
-
-    const {data:r, error} = await client.rpc('public_reservation_detail', {
-      p_reservation_id:id
-    });
-
-    if(error) throw error;
-    return r || null;
+  if(!client){
+    throw new Error('예약 조회 기능을 준비하지 못했습니다.');
   }
+
+  const latestId = readLocal(RESERVATION_KEY);
+
+  const cancelToken =
+    getTokenFor(id) ||
+    (
+      String(latestId) === String(id)
+        ? readLocal(CANCEL_TOKEN_KEY)
+        : ''
+    );
+
+  const {data:r, error} =
+    await client.rpc(
+      'public_reservation_detail_v2',
+      {
+        p_reservation_id:id,
+        p_cancel_token:cancelToken || null
+      }
+    );
+
+  if(error) throw error;
+  return r || null;
+}
 
   async function fetchReservations(ids){
     const results = await Promise.all(
@@ -1139,13 +1154,7 @@
         return;
       }
 
-      if(token){
-        removeTokenFor(r.id);
-
-        if(String(readLocal(RESERVATION_KEY)) === String(r.id)){
-          removeLocal(CANCEL_TOKEN_KEY);
-        }
-      }
+      
 
       window.alert('예약이 정상적으로 취소되었습니다.');
 
