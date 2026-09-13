@@ -24,6 +24,11 @@ window.SMART_STORE_CONFIG = Object.freeze({
   storeSlug: resolvedStoreSlug
 });
 
+const licenseGateScript = document.createElement('script');
+licenseGateScript.src = 'license-gate.js?v=20260913-1';
+licenseGateScript.defer = true;
+document.head.appendChild(licenseGateScript);
+
 // 관리자 페이지 전용 추가 스크립트
 if (isAdminPage) {
   const googleCalendarScript = document.createElement('script');
