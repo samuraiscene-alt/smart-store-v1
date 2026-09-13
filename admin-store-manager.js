@@ -1,25 +1,25 @@
-/* Smart Store - multi store manager v2 */
+/* Smart Store - multi store manager v3 */
 (() => {
-  if (window.__smartStoreManagerV2) return;
-  window.__smartStoreManagerV2 = true;
+  if (window.__smartStoreManagerV3) return;
+  window.__smartStoreManagerV3 = true;
 
   const CONFIG = window.SMART_STORE_CONFIG || {};
-  const STYLE_ID = 'adminStoreManagerStyleV2';
-  const MODAL_ID = 'adminStoreManagerModalV2';
-  const SWITCHER_ID = 'adminStoreSwitcherV2';
+  const STYLE_ID = 'adminStoreManagerStyleV3';
+  const MODAL_ID = 'adminStoreManagerModalV3';
+  const SWITCHER_ID = 'adminStoreSwitcherV3';
 
   let sb = null;
   let stores = [];
 
   const q = s => document.querySelector(s);
 
-  function esc(v='') {
+  function esc(v = '') {
     return String(v).replace(/[&<>"']/g, ch => ({
-      '&':'&amp;',
-      '<':'&lt;',
-      '>':'&gt;',
-      '"':'&quot;',
-      "'":'&#39;'
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
     }[ch]));
   }
 
@@ -30,7 +30,9 @@
       !window.supabase?.createClient ||
       !CONFIG.supabaseUrl ||
       !CONFIG.supabaseKey
-    ) return null;
+    ) {
+      return null;
+    }
 
     sb = window.supabase.createClient(
       CONFIG.supabaseUrl,
@@ -122,7 +124,7 @@
         font-size:11px;
       }
 
-      .adminStoreManagerButtonV2{
+      .adminStoreManagerButtonV3{
         width:100%;
         margin-top:8px;
         padding:13px 14px;
@@ -154,6 +156,9 @@
 
       #${MODAL_ID} .box{
         width:min(100%,420px);
+        max-height:88vh;
+        overflow:auto;
+        -webkit-overflow-scrolling:touch;
         background:#fffdfa;
         border:1px solid #eadfda;
         border-radius:26px;
@@ -238,6 +243,110 @@
         font-size:12px;
         text-align:center;
       }
+
+      #${MODAL_ID} .result{
+        display:none;
+      }
+
+      #${MODAL_ID} .result.show{
+        display:block;
+      }
+
+      #${MODAL_ID} .createForm.hidden{
+        display:none;
+      }
+
+      #${MODAL_ID} .successBox{
+        padding:18px;
+        border:1px solid #eadfda;
+        border-radius:18px;
+        background:#fff;
+      }
+
+      #${MODAL_ID} .successTitle{
+        margin:0 0 8px;
+        color:#302a28;
+        font-size:18px;
+        font-weight:900;
+      }
+
+      #${MODAL_ID} .successText{
+        margin:0;
+        color:#94867f;
+        font-size:12px;
+        line-height:1.6;
+      }
+
+      #${MODAL_ID} .resultLabel{
+        margin-top:18px;
+        margin-bottom:7px;
+        color:#76524d;
+        font-size:12px;
+        font-weight:800;
+      }
+
+      #${MODAL_ID} .copyRow{
+        display:grid;
+        grid-template-columns:1fr auto;
+        gap:8px;
+        align-items:stretch;
+      }
+
+      #${MODAL_ID} .copyValue{
+        min-width:0;
+        padding:12px 13px;
+        border:1px solid #eadfda;
+        border-radius:14px;
+        background:#fff;
+        color:#302a28;
+        font-size:13px;
+        line-height:1.45;
+        word-break:break-all;
+      }
+
+      #${MODAL_ID} .copyBtn{
+        border:0;
+        border-radius:14px;
+        padding:0 14px;
+        background:#f5e9e5;
+        color:#76524d;
+        font-size:12px;
+        font-weight:800;
+      }
+
+      #${MODAL_ID} .warning{
+        margin-top:16px;
+        padding:12px 13px;
+        border-radius:14px;
+        background:#f8eeeb;
+        color:#76524d;
+        font-size:11px;
+        line-height:1.6;
+      }
+
+      #${MODAL_ID} .openAdmin{
+        width:100%;
+        margin-top:18px;
+        padding:15px;
+        border:0;
+        border-radius:16px;
+        background:#76524d;
+        color:#fff;
+        font-size:15px;
+        font-weight:800;
+      }
+
+      #${MODAL_ID} .newAnother{
+        width:100%;
+        margin-top:9px;
+        padding:13px;
+        border:1px solid #eadfda;
+        border-radius:16px;
+        background:#fff;
+        color:#76524d;
+        font-size:14px;
+        font-weight:800;
+      }
     `;
 
     document.head.appendChild(style);
@@ -256,36 +365,113 @@
           <button class="close" type="button">×</button>
         </div>
 
-        <label>
-          <span>매장명</span>
-          <input
-            id="newStoreNameV2"
-            maxlength="80"
-            placeholder="예: JOON NAIL"
+        <div class="createForm">
+          <label>
+            <span>매장명</span>
+            <input
+              id="newStoreNameV3"
+              maxlength="80"
+              placeholder="예: JOON NAIL"
+            >
+          </label>
+
+          <label>
+            <span>매장 주소 ID</span>
+            <input
+              id="newStoreSlugV3"
+              maxlength="48"
+              autocapitalize="none"
+              autocomplete="off"
+              placeholder="예: joon-nail"
+            >
+          </label>
+
+          <small>
+            영문 소문자, 숫자, 하이픈만 사용할 수 있습니다.
+            비워두면 자동으로 생성됩니다.
+          </small>
+
+          <button class="create" type="button">
+            새 매장 생성
+          </button>
+
+          <div class="status"></div>
+        </div>
+
+        <div class="result">
+          <div class="successBox">
+            <p class="successTitle">
+              매장 생성 완료 ✓
+            </p>
+            <p class="successText">
+              플랫폼 운영자 계정은 이 매장의 소유자로 등록되지 않습니다.
+              아래 등록코드를 실제 매장 사장님에게 전달해주세요.
+            </p>
+          </div>
+
+          <div class="resultLabel">
+            매장명
+          </div>
+          <div
+            class="copyValue"
+            id="createdStoreNameV3"
+          ></div>
+
+          <div class="resultLabel">
+            사장님 등록코드
+          </div>
+          <div class="copyRow">
+            <div
+              class="copyValue"
+              id="createdClaimTokenV3"
+            ></div>
+            <button
+              class="copyBtn"
+              type="button"
+              data-copy-target="createdClaimTokenV3"
+            >
+              복사
+            </button>
+          </div>
+
+          <div class="resultLabel">
+            관리자 주소
+          </div>
+          <div class="copyRow">
+            <div
+              class="copyValue"
+              id="createdAdminUrlV3"
+            ></div>
+            <button
+              class="copyBtn"
+              type="button"
+              data-copy-target="createdAdminUrlV3"
+            >
+              복사
+            </button>
+          </div>
+
+          <div
+            class="warning"
+            id="createdClaimExpiryV3"
+          ></div>
+
+          <button
+            class="openAdmin"
+            type="button"
           >
-        </label>
+            이 매장 관리자 화면 열기
+          </button>
 
-        <label>
-          <span>매장 주소 ID</span>
-          <input
-            id="newStoreSlugV2"
-            maxlength="48"
-            autocapitalize="none"
-            autocomplete="off"
-            placeholder="예: joon-nail"
+          <button
+            class="newAnother"
+            type="button"
           >
-        </label>
+            다른 매장 새로 만들기
+          </button>
 
-        <small>
-          영문 소문자, 숫자, 하이픈만 사용할 수 있습니다.
-          비워두면 자동으로 생성됩니다.
-        </small>
-
-        <button class="create" type="button">
-          새 매장 생성
-        </button>
-
-        <div class="status"></div>
+          <div class="status resultStatus"></div>
+        </div>
       </div>
     `;
 
@@ -298,24 +484,120 @@
     });
 
     modal.querySelector('.create').onclick = createStore;
+
+    modal.querySelectorAll('[data-copy-target]')
+      .forEach(button => {
+        button.onclick = () => {
+          copyFromTarget(
+            button.dataset.copyTarget,
+            button
+          );
+        };
+      });
+
+    modal.querySelector('.newAnother').onclick = () => {
+      resetModal();
+    };
+  }
+
+  function resetModal() {
+    const form = q(`#${MODAL_ID} .createForm`);
+    const result = q(`#${MODAL_ID} .result`);
+
+    form?.classList.remove('hidden');
+    result?.classList.remove('show');
+
+    const name = q('#newStoreNameV3');
+    const slug = q('#newStoreSlugV3');
+    const status = q(`#${MODAL_ID} .createForm .status`);
+    const button = q(`#${MODAL_ID} .create`);
+
+    if (name) name.value = '';
+    if (slug) slug.value = '';
+    if (status) status.textContent = '';
+    if (button) button.disabled = false;
+
+    setTimeout(() => {
+      name?.focus();
+    }, 100);
   }
 
   function openModal() {
     mountModal();
+    resetModal();
 
-    q('#newStoreNameV2').value = '';
-    q('#newStoreSlugV2').value = '';
-    q(`#${MODAL_ID} .status`).textContent = '';
-
-    q(`#${MODAL_ID}`).classList.add('open');
-
-    setTimeout(() => {
-      q('#newStoreNameV2')?.focus();
-    }, 100);
+    q(`#${MODAL_ID}`)?.classList.add('open');
   }
 
   function closeModal() {
     q(`#${MODAL_ID}`)?.classList.remove('open');
+  }
+
+  async function copyText(text) {
+    if (!text) return false;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {}
+
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+
+      const ok = document.execCommand('copy');
+
+      textarea.remove();
+
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function copyFromTarget(id, button) {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    const text = el.textContent.trim();
+    const original = button.textContent;
+
+    const ok = await copyText(text);
+
+    button.textContent = ok ? '복사됨 ✓' : '복사 실패';
+
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1400);
+  }
+
+  function formatExpiry(value) {
+    if (!value) {
+      return '등록코드는 1회만 사용할 수 있습니다.';
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return '등록코드는 1회만 사용할 수 있습니다.';
+    }
+
+    const formatted = new Intl.DateTimeFormat(
+      'ko-KR',
+      {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }
+    ).format(date);
+
+    return `등록코드는 1회용이며 ${formatted}까지 사용할 수 있습니다.`;
   }
 
   async function loadStores() {
@@ -399,22 +681,25 @@
         };
       });
   }
-async function checkPlatformCreatePermission(button) {
-  const client = ensureClient();
-  if (!client || !button) return;
 
-  const { data, error } =
-    await client.rpc(
-      'current_platform_capabilities'
-    );
+  async function checkPlatformCreatePermission(button) {
+    const client = ensureClient();
 
-  if (
-    !error &&
-    data?.can_create_store === true
-  ) {
-    button.hidden = false;
+    if (!client || !button) return;
+
+    const { data, error } =
+      await client.rpc(
+        'current_platform_capabilities'
+      );
+
+    if (
+      !error &&
+      data?.can_create_store === true
+    ) {
+      button.hidden = false;
+    }
   }
-}
+
   function mountManager() {
     if (document.getElementById(SWITCHER_ID)) return;
 
@@ -444,14 +729,18 @@ async function checkPlatformCreatePermission(button) {
 
     createButton.type = 'button';
     createButton.className =
-      'adminStoreManagerButtonV2';
+      'adminStoreManagerButtonV3';
 
     createButton.textContent =
       '+ 새 매장 만들기';
 
     createButton.onclick = openModal;
-createButton.hidden = true;
-checkPlatformCreatePermission(createButton);
+    createButton.hidden = true;
+
+    checkPlatformCreatePermission(
+      createButton
+    );
+
     const foot =
       drawer.querySelector('.foot');
 
@@ -478,15 +767,15 @@ checkPlatformCreatePermission(createButton);
     if (!client) return;
 
     const name =
-      q('#newStoreNameV2')?.value.trim() || '';
+      q('#newStoreNameV3')?.value.trim() || '';
 
     const slug =
-      q('#newStoreSlugV2')?.value
+      q('#newStoreSlugV3')?.value
         .trim()
         .toLowerCase() || '';
 
     const status =
-      q(`#${MODAL_ID} .status`);
+      q(`#${MODAL_ID} .createForm .status`);
 
     const button =
       q(`#${MODAL_ID} .create`);
@@ -498,6 +787,7 @@ checkPlatformCreatePermission(createButton);
     }
 
     button.disabled = true;
+
     status.textContent =
       '새 매장을 만드는 중...';
 
@@ -505,8 +795,8 @@ checkPlatformCreatePermission(createButton);
       await client.rpc(
         'create_store_for_current_user',
         {
-          p_name:name,
-          p_slug:slug || null
+          p_name: name,
+          p_slug: slug || null
         }
       );
 
@@ -514,31 +804,60 @@ checkPlatformCreatePermission(createButton);
       status.textContent =
         error.message ||
         '매장 생성에 실패했습니다.';
+
       button.disabled = false;
       return;
     }
 
     const newSlug = data?.slug;
+    const claimToken = data?.claim_token;
+    const claimExpiresAt =
+      data?.claim_expires_at;
 
-    if (!newSlug) {
+    if (!newSlug || !claimToken) {
       status.textContent =
-        '매장은 생성됐지만 주소를 확인하지 못했습니다.';
+        '매장은 생성됐지만 등록정보를 확인하지 못했습니다.';
+
       button.disabled = false;
       return;
     }
 
-    localStorage.setItem(
-      'smartStoreAdminSlug',
-      newSlug
-    );
+    const adminUrl =
+      `${location.origin}${location.pathname
+        .replace(/[^/]*$/, '')}admin.html?store=${encodeURIComponent(newSlug)}`;
 
-    status.textContent =
-      '매장 생성 완료 ✓ 이동합니다.';
+    q('#createdStoreNameV3').textContent =
+      data?.name || name;
 
-    setTimeout(() => {
+    q('#createdClaimTokenV3').textContent =
+      claimToken;
+
+    q('#createdAdminUrlV3').textContent =
+      adminUrl;
+
+    q('#createdClaimExpiryV3').textContent =
+      formatExpiry(claimExpiresAt);
+
+    const openAdminButton =
+      q(`#${MODAL_ID} .openAdmin`);
+
+    openAdminButton.onclick = () => {
+      localStorage.setItem(
+        'smartStoreAdminSlug',
+        newSlug
+      );
+
       location.href =
         `admin.html?store=${encodeURIComponent(newSlug)}`;
-    },700);
+    };
+
+    q(`#${MODAL_ID} .createForm`)
+      ?.classList.add('hidden');
+
+    q(`#${MODAL_ID} .result`)
+      ?.classList.add('show');
+
+    loadStores();
   }
 
   function init() {
@@ -557,14 +876,14 @@ checkPlatformCreatePermission(createButton);
       ) {
         clearInterval(timer);
       }
-    },250);
+    }, 250);
   }
 
   if (document.readyState === 'loading') {
     document.addEventListener(
       'DOMContentLoaded',
       init,
-      { once:true }
+      { once: true }
     );
   } else {
     init();
