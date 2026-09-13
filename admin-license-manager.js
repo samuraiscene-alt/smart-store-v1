@@ -11,7 +11,7 @@
 
   let sb = null;
   let licenses = [];
-
+let buttonMounting = false;
   const q = s => document.querySelector(s);
 
   const esc = (v = '') =>
@@ -352,15 +352,22 @@
   }
 
   async function mountButton() {
-    if (document.getElementById(BUTTON_ID)) {
-      return true;
-    }
+  if (document.getElementById(BUTTON_ID)) {
+    return true;
+  }
 
-    const allowed = await checkPlatformAdmin();
+  if (buttonMounting) {
+    return false;
+  }
+
+  buttonMounting = true;
+
+  const allowed = await checkPlatformAdmin();
 
     if (!allowed) {
-      return false;
-    }
+  buttonMounting = false;
+  return false;
+}
 
     const drawer =
       document.querySelector(
@@ -368,8 +375,9 @@
       );
 
     if (!drawer) {
-      return false;
-    }
+  buttonMounting = false;
+  return false;
+}
 
     const button =
       document.createElement('button');
@@ -392,7 +400,7 @@
     } else {
       drawer.appendChild(button);
     }
-
+buttonMounting = false;
     return true;
   }
 
