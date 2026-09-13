@@ -48,4 +48,9 @@ const appIconSettingsScript = document.createElement('script');
 appIconSettingsScript.src = 'admin-app-icon-settings.js?v=20260912-1';
 appIconSettingsScript.defer = true;
 document.head.appendChild(appIconSettingsScript);
+
+  const customerPageLinkScript = document.createElement('script');
+customerPageLinkScript.src = 'admin-customer-page-link.js?v=20260913-1';
+customerPageLinkScript.defer = true;
+document.head.appendChild(customerPageLinkScript);
 }
