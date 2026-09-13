@@ -399,7 +399,22 @@
         };
       });
   }
+async function checkPlatformCreatePermission(button) {
+  const client = ensureClient();
+  if (!client || !button) return;
 
+  const { data, error } =
+    await client.rpc(
+      'current_platform_capabilities'
+    );
+
+  if (
+    !error &&
+    data?.can_create_store === true
+  ) {
+    button.hidden = false;
+  }
+}
   function mountManager() {
     if (document.getElementById(SWITCHER_ID)) return;
 
@@ -435,7 +450,8 @@
       '+ 새 매장 만들기';
 
     createButton.onclick = openModal;
-
+createButton.hidden = true;
+checkPlatformCreatePermission(createButton);
     const foot =
       drawer.querySelector('.foot');
 
