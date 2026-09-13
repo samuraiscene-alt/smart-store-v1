@@ -369,7 +369,7 @@ localStorage.removeItem(LAST_CANCEL_TOKEN_KEY);
           pushBtn.disabled=false;
           return;
         }
-        await window.SmartStorePush.subscribeCustomer(reservationId);
+        await window.SmartStorePush.subscribeCustomer(reservationId,cancelToken);
         pushBtn.textContent='예약 알림 켜짐 ✓';
         if(help)help.textContent='이 예약의 승인·거절 결과를 푸시 알림으로 받습니다.';
       }catch(e){
