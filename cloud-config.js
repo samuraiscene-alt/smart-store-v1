@@ -53,4 +53,8 @@ document.head.appendChild(appIconSettingsScript);
 customerPageLinkScript.src = 'admin-customer-page-link.js?v=20260913-1';
 customerPageLinkScript.defer = true;
 document.head.appendChild(customerPageLinkScript);
+const licenseManagerScript = document.createElement('script');
+licenseManagerScript.src = 'admin-license-manager.js?v=20260913-1';
+licenseManagerScript.defer = true;
+document.head.appendChild(licenseManagerScript);
 }
