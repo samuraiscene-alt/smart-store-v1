@@ -837,7 +837,8 @@
 
     q('#createdClaimExpiryV3').textContent =
       formatExpiry(claimExpiresAt);
-
+q('#createdTrialInfoV3').textContent =
+  formatTrialInfo(trialEndsAt);
     const openAdminButton =
       q(`#${MODAL_ID} .openAdmin`);
 
