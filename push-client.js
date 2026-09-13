@@ -8,6 +8,7 @@
 
   const PUSH_STORE_SLUG = PUSH_CONFIG.storeSlug;
   const PUSH_LAST_RESERVATION_KEY = `smartStoreLastReservationId:${encodeURIComponent(PUSH_STORE_SLUG||'default')}`;
+  const PUSH_LAST_CANCEL_TOKEN_KEY = `smartStoreLastCancelToken:${encodeURIComponent(PUSH_STORE_SLUG||'default')}`;
   const pushSb = window.supabase.createClient(PUSH_CONFIG.supabaseUrl, PUSH_CONFIG.supabaseKey);
   const FUNCTION_URL = `${PUSH_CONFIG.supabaseUrl}/functions/v1/send-push`;
   const SERVICE_WORKER_URL = 'service-worker.js?v=20260905-1';
@@ -125,23 +126,40 @@
     return true;
   }
 
-  async function subscribeCustomer(reservationId){
-    if(!reservationId)throw new Error('예약 정보를 찾을 수 없습니다.');
-    try{localStorage.setItem(PUSH_LAST_RESERVATION_KEY,reservationId)}catch{}
+  async function subscribeCustomer(reservationId,cancelToken=''){
+  if(!reservationId)throw new Error('예약 정보를 찾을 수 없습니다.');
 
-    const sub=await getSubscription();
-    const f=subscriptionFields(sub);
-    const {error}=await pushSb.rpc('register_customer_push_subscription',{
+  let token=String(cancelToken||'');
+
+  if(!token){
+    try{
+      token=localStorage.getItem(PUSH_LAST_CANCEL_TOKEN_KEY)||'';
+    }catch{}
+  }
+
+  try{
+    localStorage.setItem(PUSH_LAST_RESERVATION_KEY,reservationId);
+  }catch{}
+
+  const sub=await getSubscription();
+  const f=subscriptionFields(sub);
+
+  const {error}=await pushSb.rpc(
+    'register_customer_push_subscription_v2',
+    {
       p_slug:PUSH_STORE_SLUG,
       p_reservation_id:reservationId,
       p_endpoint:f.endpoint,
       p_p256dh:f.p256dh,
       p_auth:f.auth,
-      p_user_agent:navigator.userAgent
-    });
-    if(error)throw error;
-    return true;
-  }
+      p_user_agent:navigator.userAgent,
+      p_cancel_token:token||null
+    }
+  );
+
+  if(error)throw error;
+  return true;
+}
 
   async function sendNewReservation(reservationId){
     if(!reservationId)return;
