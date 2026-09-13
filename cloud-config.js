@@ -62,4 +62,8 @@ const licenseManagerScript = document.createElement('script');
 licenseManagerScript.src = 'admin-license-manager.js?v=20260913-1';
 licenseManagerScript.defer = true;
 document.head.appendChild(licenseManagerScript);
+  const trialNoticeScript = document.createElement('script');
+trialNoticeScript.src = 'admin-trial-notice.js?v=20260913-1';
+trialNoticeScript.defer = true;
+document.head.appendChild(trialNoticeScript);
 }
