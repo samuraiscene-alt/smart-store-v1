@@ -343,8 +343,7 @@ if(cancelBtn){
     }
 
     try{
-      localStorage.removeItem(LAST_RESERVATION_KEY);
-localStorage.removeItem(LAST_CANCEL_TOKEN_KEY);
+      
     }catch{}
 
     availabilityCache.delete(booking.date);
