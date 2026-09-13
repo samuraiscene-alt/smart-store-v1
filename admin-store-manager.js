@@ -455,7 +455,10 @@
             class="warning"
             id="createdClaimExpiryV3"
           ></div>
-
+<div
+  class="warning"
+  id="createdTrialInfoV3"
+></div>
           <button
             class="openAdmin"
             type="button"
@@ -599,7 +602,28 @@
 
     return `등록코드는 1회용이며 ${formatted}까지 사용할 수 있습니다.`;
   }
+function formatTrialInfo(value) {
+  if (!value) {
+    return '무료 체험 종료일을 확인하지 못했습니다.';
+  }
 
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '무료 체험 종료일을 확인하지 못했습니다.';
+  }
+
+  const formatted = new Intl.DateTimeFormat(
+    'ko-KR',
+    {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }
+  ).format(date);
+
+  return `14일 무료 체험 · ${formatted}까지 사용 가능 · 체험 종료 후 라이선스 활성화가 필요합니다.`;
+}
   async function loadStores() {
     const client = ensureClient();
     if (!client) return;
@@ -813,7 +837,8 @@
     const claimToken = data?.claim_token;
     const claimExpiresAt =
       data?.claim_expires_at;
-
+const trialEndsAt =
+  data?.trial_ends_at;
     if (!newSlug || !claimToken) {
       status.textContent =
         '매장은 생성됐지만 등록정보를 확인하지 못했습니다.';
