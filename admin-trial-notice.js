@@ -278,27 +278,18 @@
   function init() {
     addStyles();
 
-    let tries = 0;
-
     const timer = setInterval(async () => {
-      tries++;
+  const app =
+    document.getElementById('adminApp');
 
-      const app =
-        document.getElementById('adminApp');
-
-      if (
-        app &&
-        !app.classList.contains('hidden')
-      ) {
-        clearInterval(timer);
-        await loadTrialState();
-        return;
-      }
-
-      if (tries >= 80) {
-        clearInterval(timer);
-      }
-    }, 250);
+  if (
+    app &&
+    !app.classList.contains('hidden')
+  ) {
+    clearInterval(timer);
+    await loadTrialState();
+  }
+}, 250);
 
     document.addEventListener(
       'visibilitychange',
