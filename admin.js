@@ -58,7 +58,21 @@ $('#authSignIn').onclick=async()=>{
 };
 $('#authSignUp').onclick=async()=>{
   const email=$('#authEmail').value.trim(),password=$('#authPassword').value;if(!email||password.length<6){showAuthMessage('이메일과 6자 이상의 비밀번호를 입력해주세요.',true);return}
-  showAuthMessage('계정 생성 중...');const {data:res,error}=await sb.auth.signUp({email,password});if(error){showAuthMessage(error.message,true);return}
+  showAuthMessage('계정 생성 중...');
+
+const {data:res,error}=await sb.auth.signUp({
+  email,
+  password,
+  options:{
+    emailRedirectTo:
+      `${location.origin}${location.pathname}?store=${encodeURIComponent(STORE_SLUG)}`
+  }
+});
+
+if(error){
+  showAuthMessage(error.message,true);
+  return;
+}
   if(res.session)showAuthMessage('계정이 생성되었습니다. 매장 등록코드를 입력해주세요.');else showAuthMessage('가입 확인 메일을 보냈습니다. 메일 인증 후 이 화면에서 로그인해주세요.');
 };
 $('#claimStore').onclick=async()=>{
