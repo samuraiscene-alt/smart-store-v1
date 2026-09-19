@@ -1,11 +1,11 @@
-/* Smart Store - platform claim reissue v1 */
+/* Smart Store - organization store admin claim manager v2 */
 (() => {
-  if (window.__smartStoreClaimReissueV1) return;
-  window.__smartStoreClaimReissueV1 = true;
+  if (window.__smartStoreClaimManagerV2) return;
+  window.__smartStoreClaimManagerV2 = true;
 
   const CONFIG = window.SMART_STORE_CONFIG || {};
   const SWITCHER_ID = 'adminStoreSwitcherV3';
-  const STYLE_ID = 'adminStoreClaimReissueStyleV1';
+  const STYLE_ID = 'adminStoreClaimManagerStyleV2';
 
   let sb = null;
   let statuses = new Map();
@@ -54,6 +54,11 @@
         font-size:11px;
         font-weight:900;
         line-height:1.25;
+      }
+
+      #${SWITCHER_ID} .claimReissueBtn.replace{
+        border-color:#cda39a;
+        background:#f4e2de;
       }
 
       #${SWITCHER_ID} .claimReissueBtn:disabled{
@@ -114,18 +119,10 @@
     const c = client();
     if (!c) return false;
 
-    const { data: caps, error: capsError } =
-      await c.rpc('current_platform_capabilities');
-
-    if (
-      capsError ||
-      caps?.is_platform_admin !== true
-    ) {
-      return false;
-    }
-
     const { data, error } =
-      await c.rpc('platform_store_claim_statuses');
+      await c.rpc(
+        'organization_store_claim_statuses'
+      );
 
     if (error || !Array.isArray(data)) {
       console.warn(error);
@@ -137,43 +134,52 @@
     );
 
     decorate();
-    return true;
+    return statuses.size > 0;
   }
 
   function label(status) {
-    if (!status) return '상태 확인 중';
+    if (!status) return '';
 
-    if (status.reissue_allowed) {
+    if (status.has_admin === true) {
+      return '관리자 교체';
+    }
+
+    if (
+      status.claim_exists === true &&
+      status.claimed !== true
+    ) {
       return '등록코드 재발급';
     }
 
-    if (status.claimed || status.has_owner) {
-      return '사장 등록 완료';
-    }
-
-    if (!status.claim_exists) {
-      return '등록코드 없음';
-    }
-
-    return '재발급 불가';
+    return '등록코드 발급';
   }
 
-  async function reissue(slug, button) {
+  async function issue(slug, button) {
     const status = statuses.get(slug);
+    if (!status) return;
 
-    if (!status?.reissue_allowed) return;
+    const replacing =
+      status.has_admin === true;
 
-    const ok = confirm(
-      '기존 등록코드는 즉시 무효화됩니다.\n새 등록코드를 발급할까요?'
-    );
+    const message = replacing
+      ? (
+        '기존 지점 관리자 권한이 즉시 해제됩니다.\n' +
+        '이 작업은 되돌릴 수 없습니다.\n\n' +
+        '새 관리자용 등록코드를 발급할까요?'
+      )
+      : (
+        '기존 등록코드가 있다면 즉시 무효화됩니다.\n' +
+        '새 1회용 등록코드를 발급할까요?'
+      );
 
-    if (!ok) return;
+    if (!confirm(message)) return;
 
     const c = client();
     if (!c) return;
 
     button.disabled = true;
-    button.textContent = '재발급 중...';
+    button.textContent =
+      replacing ? '교체 중...' : '발급 중...';
 
     const { data, error } =
       await c.rpc(
@@ -184,7 +190,7 @@
     if (error) {
       alert(
         error.message ||
-        '등록코드 재발급에 실패했습니다.'
+        '등록코드 발급에 실패했습니다.'
       );
 
       await loadStatuses();
@@ -202,19 +208,22 @@
     }
 
     const copied = await copyText(token);
+    const title = data?.replaced_admin
+      ? '관리자 교체 준비 완료'
+      : '등록코드 발급 완료';
 
     if (copied) {
       alert(
-        `등록코드 재발급 완료\n\n` +
+        `${title}\n\n` +
         `${data?.name || slug}\n` +
         `유효기간: ${expiry}\n\n` +
-        `새 등록코드가 클립보드에 복사되었습니다.`
+        '새 등록코드가 클립보드에 복사되었습니다.'
       );
     } else {
       prompt(
-        `등록코드 재발급 완료\n` +
+        `${title}\n` +
         `유효기간: ${expiry}\n\n` +
-        `아래 코드를 복사하세요.`,
+        '아래 코드를 복사하세요.',
         token
       );
     }
@@ -237,6 +246,10 @@
         storeButton.dataset.storeSlug;
 
       if (!slug) return;
+
+      const status = statuses.get(slug);
+
+      if (!status) return;
 
       let row = storeButton.parentElement;
 
@@ -274,16 +287,17 @@
         row.appendChild(action);
       }
 
-      const status = statuses.get(slug);
-      const allowed =
-        status?.reissue_allowed === true;
+      const replacing =
+        status.has_admin === true;
 
-      action.disabled = !allowed;
+      action.disabled = false;
+      action.classList.toggle(
+        'replace',
+        replacing
+      );
       action.textContent = label(status);
-
-      action.onclick = allowed
-        ? () => reissue(slug, action)
-        : null;
+      action.onclick =
+        () => issue(slug, action);
     });
   }
 
