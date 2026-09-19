@@ -46,7 +46,7 @@ if (isAdminPage) {
   adminSafeAreaStyle.href = 'admin-safe-area-fix.css?v=20260912-1';
   document.head.appendChild(adminSafeAreaStyle);
   const adminStoreManagerScript = document.createElement('script');
-adminStoreManagerScript.src = 'admin-store-manager.js?v=20260918-1';
+adminStoreManagerScript.src = 'admin-store-manager.js?v=20260919-1';
 adminStoreManagerScript.defer = true;
 document.head.appendChild(adminStoreManagerScript);
 const appIconSettingsScript = document.createElement('script');
