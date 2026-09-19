@@ -1,17 +1,16 @@
-/* Smart Store - platform license manager */
+/* Smart Store - organization license overview */
 (() => {
-  if (window.__smartStoreLicenseManager) return;
-  window.__smartStoreLicenseManager = true;
+  if (window.__smartStoreLicenseManagerV2) return;
+  window.__smartStoreLicenseManagerV2 = true;
 
   const CONFIG = window.SMART_STORE_CONFIG || {};
-
-  const STYLE_ID = 'smartStoreLicenseManagerStyle';
+  const STYLE_ID = 'smartStoreLicenseManagerStyleV2';
   const BUTTON_ID = 'smartStoreLicenseManagerButton';
-  const MODAL_ID = 'smartStoreLicenseManagerModal';
+  const MODAL_ID = 'smartStoreLicenseManagerModalV2';
 
   let sb = null;
-  let licenses = [];
-let buttonMounting = false;
+  let buttonMounting = false;
+
   const q = s => document.querySelector(s);
 
   const esc = (v = '') =>
@@ -44,48 +43,63 @@ let buttonMounting = false;
 
   function statusLabel(status) {
     return ({
-      trial: '체험',
-      active: '활성',
+      trial: '무료 체험',
+      active: '이용 중',
       overdue: '미납 유예',
-      suspended: '정지',
-      cancelled: '해지'
+      suspended: '이용 정지',
+      cancelled: '해지',
+      missing: '라이선스 없음'
     })[status] || status || '-';
   }
 
-  function toLocalInput(value) {
+  function kindLabel(kind) {
+    return kind === 'additional'
+      ? '추가 매장'
+      : '첫 매장';
+  }
+
+  function formatDate(value) {
     if (!value) return '';
 
     const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
 
-    if (Number.isNaN(d.getTime())) {
-      return '';
-    }
-
-    const pad = n => String(n).padStart(2, '0');
-
-    return [
-      d.getFullYear(),
-      '-',
-      pad(d.getMonth() + 1),
-      '-',
-      pad(d.getDate()),
-      'T',
-      pad(d.getHours()),
-      ':',
-      pad(d.getMinutes())
-    ].join('');
+    return new Intl.DateTimeFormat(
+      'ko-KR',
+      {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }
+    ).format(d);
   }
 
-  function toIso(value) {
-    if (!value) return null;
-
-    const d = new Date(value);
-
-    if (Number.isNaN(d.getTime())) {
-      return null;
+  function licenseDetail(item) {
+    if (item.status === 'trial') {
+      const end = formatDate(item.trial_ends_at);
+      return end
+        ? `무료 체험 종료 · ${end}`
+        : '무료 체험 중';
     }
 
-    return d.toISOString();
+    if (item.status === 'active') {
+      const end = formatDate(
+        item.current_period_ends_at
+      );
+
+      return end
+        ? `이용기간 · ${end}까지`
+        : '현재 정상 이용 중';
+    }
+
+    if (item.status === 'overdue') {
+      const end = formatDate(item.grace_ends_at);
+      return end
+        ? `미납 유예 · ${end}까지`
+        : '미납 유예 상태';
+    }
+
+    return statusLabel(item.status);
   }
 
   function addStyles() {
@@ -177,13 +191,59 @@ let buttonMounting = false;
         text-align:center;
       }
 
+      #${MODAL_ID} .orgName{
+        margin-bottom:12px;
+        color:#302a28;
+        font-size:17px;
+        font-weight:900;
+      }
+
+      #${MODAL_ID} .summaryGrid{
+        display:grid;
+        grid-template-columns:repeat(3,1fr);
+        gap:8px;
+        margin-bottom:14px;
+      }
+
+      #${MODAL_ID} .summaryItem{
+        padding:12px 8px;
+        border:1px solid #eadfda;
+        border-radius:16px;
+        background:#fff;
+        text-align:center;
+      }
+
+      #${MODAL_ID} .summaryItem b{
+        display:block;
+        color:#76524d;
+        font-size:20px;
+      }
+
+      #${MODAL_ID} .summaryItem span{
+        display:block;
+        margin-top:4px;
+        color:#9a8b84;
+        font-size:10px;
+        line-height:1.35;
+      }
+
+      #${MODAL_ID} .entitlement{
+        margin-bottom:14px;
+        padding:12px 13px;
+        border-radius:15px;
+        background:#f8eeeb;
+        color:#76524d;
+        font-size:11px;
+        line-height:1.6;
+      }
+
       #${MODAL_ID} .licenseList{
         display:grid;
-        gap:12px;
+        gap:10px;
       }
 
       #${MODAL_ID} .licenseCard{
-        padding:15px;
+        padding:14px;
         border:1px solid #eadfda;
         border-radius:18px;
         background:#fff;
@@ -193,7 +253,7 @@ let buttonMounting = false;
         display:flex;
         justify-content:space-between;
         align-items:flex-start;
-        gap:12px;
+        gap:10px;
       }
 
       #${MODAL_ID} .storeName{
@@ -203,7 +263,7 @@ let buttonMounting = false;
       #${MODAL_ID} .storeName b{
         display:block;
         color:#302a28;
-        font-size:15px;
+        font-size:14px;
       }
 
       #${MODAL_ID} .storeName small{
@@ -222,7 +282,7 @@ let buttonMounting = false;
         border-radius:999px;
         background:#f5e9e5;
         color:#76524d;
-        font-size:11px;
+        font-size:10px;
         font-weight:900;
       }
 
@@ -231,68 +291,37 @@ let buttonMounting = false;
         color:#777;
       }
 
-      #${MODAL_ID} .form{
-        display:grid;
-        gap:10px;
-        margin-top:14px;
+      #${MODAL_ID} .meta{
+        display:flex;
+        align-items:center;
+        flex-wrap:wrap;
+        gap:6px;
+        margin-top:11px;
       }
 
-      #${MODAL_ID} label{
-        display:block;
-      }
-
-      #${MODAL_ID} label > span{
-        display:block;
-        margin-bottom:5px;
+      #${MODAL_ID} .kind{
+        padding:5px 8px;
+        border-radius:999px;
+        background:#f7f2ef;
         color:#76524d;
-        font-size:11px;
+        font-size:10px;
         font-weight:800;
       }
 
-      #${MODAL_ID} select,
-      #${MODAL_ID} input,
-      #${MODAL_ID} textarea{
-        width:100%;
-        box-sizing:border-box;
-        padding:12px;
+      #${MODAL_ID} .detail{
+        color:#8d7f78;
+        font-size:10px;
+      }
+
+      #${MODAL_ID} .footNote{
+        margin-top:14px;
+        padding:12px 13px;
         border:1px solid #eadfda;
-        border-radius:13px;
+        border-radius:15px;
         background:#fffdfa;
-        color:#302a28;
-        font-size:14px;
-        outline:none;
-      }
-
-      #${MODAL_ID} textarea{
-        min-height:68px;
-        resize:vertical;
-      }
-
-      #${MODAL_ID} .dateRow[hidden]{
-        display:none;
-      }
-
-      #${MODAL_ID} .save{
-        width:100%;
-        margin-top:2px;
-        padding:13px;
-        border:0;
-        border-radius:14px;
-        background:#76524d;
-        color:#fff;
-        font-size:14px;
-        font-weight:900;
-      }
-
-      #${MODAL_ID} .save:disabled{
-        opacity:.5;
-      }
-
-      #${MODAL_ID} .message{
-        min-height:17px;
-        color:#94867f;
+        color:#8d7f78;
         font-size:11px;
-        text-align:center;
+        line-height:1.6;
       }
     `;
 
@@ -308,7 +337,7 @@ let buttonMounting = false;
     modal.innerHTML = `
       <div class="panel">
         <div class="top">
-          <h2>매장 라이선스 관리</h2>
+          <h2>라이선스 · 추가 매장</h2>
           <button
             class="close"
             type="button"
@@ -336,38 +365,40 @@ let buttonMounting = false;
     });
   }
 
-  async function checkPlatformAdmin() {
+  async function checkOrganizationOwner() {
     const client = ensureClient();
     if (!client) return false;
 
     const { data, error } =
       await client.rpc(
-        'current_platform_capabilities'
+        'current_organization_capabilities',
+        { p_slug: CONFIG.storeSlug }
       );
 
     return (
       !error &&
-      data?.is_platform_admin === true
+      data?.can_manage_licenses === true
     );
   }
 
   async function mountButton() {
-  if (document.getElementById(BUTTON_ID)) {
-    return true;
-  }
+    if (document.getElementById(BUTTON_ID)) {
+      return true;
+    }
 
-  if (buttonMounting) {
-    return false;
-  }
+    if (buttonMounting) {
+      return false;
+    }
 
-  buttonMounting = true;
+    buttonMounting = true;
 
-  const allowed = await checkPlatformAdmin();
+    const allowed =
+      await checkOrganizationOwner();
 
     if (!allowed) {
-  buttonMounting = false;
-  return false;
-}
+      buttonMounting = false;
+      return false;
+    }
 
     const drawer =
       document.querySelector(
@@ -375,9 +406,9 @@ let buttonMounting = false;
       );
 
     if (!drawer) {
-  buttonMounting = false;
-  return false;
-}
+      buttonMounting = false;
+      return false;
+    }
 
     const button =
       document.createElement('button');
@@ -385,7 +416,7 @@ let buttonMounting = false;
     button.id = BUTTON_ID;
     button.type = 'button';
     button.textContent =
-      '매장 라이선스 관리';
+      '라이선스 · 추가 매장';
 
     button.onclick = openModal;
 
@@ -400,7 +431,8 @@ let buttonMounting = false;
     } else {
       drawer.appendChild(button);
     }
-buttonMounting = false;
+
+    buttonMounting = false;
     return true;
   }
 
@@ -410,7 +442,7 @@ buttonMounting = false;
     q(`#${MODAL_ID}`)
       ?.classList.add('open');
 
-    await loadLicenses();
+    await loadOverview();
   }
 
   function closeModal() {
@@ -418,7 +450,7 @@ buttonMounting = false;
       ?.classList.remove('open');
   }
 
-  async function loadLicenses() {
+  async function loadOverview() {
     const client = ensureClient();
     if (!client) return;
 
@@ -433,14 +465,15 @@ buttonMounting = false;
 
     const { data, error } =
       await client.rpc(
-        'platform_list_store_licenses'
+        'current_organization_license_overview',
+        { p_slug: CONFIG.storeSlug }
       );
 
-    if (error) {
+    if (error || !data) {
       content.innerHTML = `
         <div class="empty">
           ${esc(
-            error.message ||
+            error?.message ||
             '라이선스를 불러오지 못했습니다.'
           )}
         </div>
@@ -448,49 +481,73 @@ buttonMounting = false;
       return;
     }
 
-    licenses =
-      Array.isArray(data)
-        ? data
-        : [];
-
-    renderLicenses();
+    renderOverview(data);
   }
 
-  function renderLicenses() {
+  function renderOverview(data) {
     const content =
       q(`#${MODAL_ID} .content`);
 
-    if (!licenses.length) {
-      content.innerHTML = `
-        <div class="empty">
-          등록된 매장이 없습니다.
-        </div>
-      `;
-      return;
-    }
+    const stores =
+      Array.isArray(data.stores)
+        ? data.stores
+        : [];
+
+    const available =
+      Number(data.available_store_slots || 0);
+
+    const footMessage =
+      available > 0
+        ? `추가 매장 ${available}개를 더 만들 수 있습니다. 매장 전환 메뉴의 ‘+ 새 매장 만들기’에서 생성하세요.`
+        : '추가 매장을 만들려면 추가 매장 이용권이 필요합니다. 결제 연동 후 구매가 완료되면 추가 가능 수량이 자동으로 늘어나는 구조입니다.';
 
     content.innerHTML = `
+      <div class="orgName">
+        ${esc(data.organization_name || 'Smart Store')}
+      </div>
+
+      <div class="summaryGrid">
+        <div class="summaryItem">
+          <b>${esc(data.used_store_count)}</b>
+          <span>현재 매장</span>
+        </div>
+
+        <div class="summaryItem">
+          <b>${esc(data.allowed_store_count)}</b>
+          <span>이용 가능 매장</span>
+        </div>
+
+        <div class="summaryItem">
+          <b>${esc(available)}</b>
+          <span>추가 가능</span>
+        </div>
+      </div>
+
+      <div class="entitlement">
+        첫 매장 이용권
+        <b>${esc(data.base_store_slots)}</b>개 ·
+        추가 매장 이용권
+        <b>${esc(data.additional_store_slots)}</b>개
+      </div>
+
       <div class="licenseList">
-        ${licenses.map(renderCard).join('')}
+        ${stores.length
+          ? stores.map(renderStore).join('')
+          : '<div class="empty">등록된 매장이 없습니다.</div>'}
+      </div>
+
+      <div class="footNote">
+        ${esc(footMessage)}
       </div>
     `;
-
-    content
-      .querySelectorAll('.licenseCard')
-      .forEach(card => {
-        bindCard(card);
-      });
   }
 
-  function renderCard(item) {
+  function renderStore(item) {
     const usable =
       item.usable === true;
 
     return `
-      <div
-        class="licenseCard"
-        data-store-id="${esc(item.store_id)}"
-      >
+      <div class="licenseCard">
         <div class="storeHead">
           <div class="storeName">
             <b>${esc(item.store_name)}</b>
@@ -500,309 +557,20 @@ buttonMounting = false;
           <span
             class="badge ${usable ? '' : 'off'}"
           >
-            ${usable ? '사용 가능' : '사용 중지'}
+            ${esc(statusLabel(item.status))}
           </span>
         </div>
 
-        <div class="form">
-          <label>
-            <span>라이선스 상태</span>
-
-            <select class="statusSelect">
-              <option
-                value="trial"
-                ${item.status === 'trial' ? 'selected' : ''}
-              >체험</option>
-
-              <option
-                value="active"
-                ${item.status === 'active' ? 'selected' : ''}
-              >활성</option>
-
-              <option
-                value="overdue"
-                ${item.status === 'overdue' ? 'selected' : ''}
-              >미납 유예</option>
-
-              <option
-                value="suspended"
-                ${item.status === 'suspended' ? 'selected' : ''}
-              >정지</option>
-
-              <option
-                value="cancelled"
-                ${item.status === 'cancelled' ? 'selected' : ''}
-              >해지</option>
-            </select>
-          </label>
-
-          <label>
-            <span>요금제 코드</span>
-
-            <input
-              class="planCode"
-              type="text"
-              maxlength="40"
-              value="${esc(item.plan_code || '')}"
-              placeholder="예: standard"
-            >
-          </label>
-
-          <label
-            class="dateRow trialDateRow"
-            hidden
-          >
-            <span>체험 종료일</span>
-
-            <input
-              class="trialEnds"
-              type="datetime-local"
-              value="${esc(
-                toLocalInput(item.trial_ends_at)
-              )}"
-            >
-          </label>
-
-          <label
-            class="dateRow activeDateRow"
-            hidden
-          >
-            <span>이용기간 종료일</span>
-
-            <input
-              class="periodEnds"
-              type="datetime-local"
-              value="${esc(
-                toLocalInput(
-                  item.current_period_ends_at
-                )
-              )}"
-            >
-          </label>
-
-          <label
-            class="dateRow overdueDateRow"
-            hidden
-          >
-            <span>미납 유예 종료일</span>
-
-            <input
-              class="graceEnds"
-              type="datetime-local"
-              value="${esc(
-                toLocalInput(item.grace_ends_at)
-              )}"
-            >
-          </label>
-
-          <label>
-            <span>변경 사유</span>
-
-            <textarea
-              class="reason"
-              placeholder="예: 9월 이용료 결제 완료"
-            ></textarea>
-          </label>
-
-          <button
-            class="save"
-            type="button"
-          >
-            라이선스 저장
-          </button>
-
-          <div class="message">
-            현재 상태:
-            ${esc(statusLabel(item.status))}
-          </div>
+        <div class="meta">
+          <span class="kind">
+            ${esc(kindLabel(item.license_kind))}
+          </span>
+          <span class="detail">
+            ${esc(licenseDetail(item))}
+          </span>
         </div>
       </div>
     `;
-  }
-
-  function updateDateRows(card) {
-    const status =
-      card.querySelector(
-        '.statusSelect'
-      )?.value;
-
-    card.querySelector('.trialDateRow')
-      .hidden = status !== 'trial';
-
-    card.querySelector('.activeDateRow')
-      .hidden = status !== 'active';
-
-    card.querySelector('.overdueDateRow')
-      .hidden = status !== 'overdue';
-  }
-
-  function setDefaultDateIfNeeded(card) {
-    const status =
-      card.querySelector(
-        '.statusSelect'
-      )?.value;
-
-    const now = new Date();
-
-    if (status === 'trial') {
-      const input =
-        card.querySelector('.trialEnds');
-
-      if (!input.value) {
-        const d =
-          new Date(
-            now.getTime() +
-            14 * 24 * 60 * 60 * 1000
-          );
-
-        input.value =
-          toLocalInput(d);
-      }
-    }
-
-    if (status === 'overdue') {
-      const input =
-        card.querySelector('.graceEnds');
-
-      if (!input.value) {
-        const d =
-          new Date(
-            now.getTime() +
-            7 * 24 * 60 * 60 * 1000
-          );
-
-        input.value =
-          toLocalInput(d);
-      }
-    }
-  }
-
-  function bindCard(card) {
-    const select =
-      card.querySelector(
-        '.statusSelect'
-      );
-
-    updateDateRows(card);
-
-    select.onchange = () => {
-      updateDateRows(card);
-      setDefaultDateIfNeeded(card);
-    };
-
-    card.querySelector('.save').onclick =
-      () => saveLicense(card);
-  }
-
-  async function saveLicense(card) {
-    const client = ensureClient();
-    if (!client) return;
-
-    const storeId =
-      card.dataset.storeId;
-
-    const status =
-      card.querySelector(
-        '.statusSelect'
-      ).value;
-
-    const planCode =
-      card.querySelector(
-        '.planCode'
-      ).value.trim();
-
-    const reason =
-      card.querySelector(
-        '.reason'
-      ).value.trim();
-
-    const trialValue =
-      card.querySelector(
-        '.trialEnds'
-      ).value;
-
-    const periodValue =
-      card.querySelector(
-        '.periodEnds'
-      ).value;
-
-    const graceValue =
-      card.querySelector(
-        '.graceEnds'
-      ).value;
-
-    const message =
-      card.querySelector('.message');
-
-    const button =
-      card.querySelector('.save');
-
-    if (
-      status === 'trial' &&
-      !trialValue
-    ) {
-      message.textContent =
-        '체험 종료일을 입력해주세요.';
-      return;
-    }
-
-    if (
-      status === 'overdue' &&
-      !graceValue
-    ) {
-      message.textContent =
-        '미납 유예 종료일을 입력해주세요.';
-      return;
-    }
-
-    button.disabled = true;
-    message.textContent =
-      '저장하는 중...';
-
-    const { data, error } =
-      await client.rpc(
-        'platform_update_store_license',
-        {
-          p_store_id: storeId,
-          p_status: status,
-          p_plan_code:
-            planCode || null,
-          p_trial_ends_at:
-            status === 'trial'
-              ? toIso(trialValue)
-              : null,
-          p_current_period_ends_at:
-            status === 'active'
-              ? toIso(periodValue)
-              : null,
-          p_grace_ends_at:
-            status === 'overdue'
-              ? toIso(graceValue)
-              : null,
-          p_reason:
-            reason || null
-        }
-      );
-
-    if (error) {
-      message.textContent =
-        error.message ||
-        '저장에 실패했습니다.';
-
-      button.disabled = false;
-      return;
-    }
-
-    message.textContent =
-      `저장 완료 ✓ ${statusLabel(
-        data?.status || status
-      )}`;
-
-    button.disabled = false;
-
-    setTimeout(() => {
-      loadLicenses();
-    }, 500);
   }
 
   function init() {
