@@ -25,7 +25,7 @@ window.SMART_STORE_CONFIG = Object.freeze({
 });
 
 const licenseGateScript = document.createElement('script');
-licenseGateScript.src = 'license-gate.js?v=20260913-1';
+licenseGateScript.src = 'license-gate.js?v=20260919-1';
 licenseGateScript.defer = true;
 document.head.appendChild(licenseGateScript);
 
@@ -46,7 +46,7 @@ if (isAdminPage) {
   adminSafeAreaStyle.href = 'admin-safe-area-fix.css?v=20260912-1';
   document.head.appendChild(adminSafeAreaStyle);
   const adminStoreManagerScript = document.createElement('script');
-adminStoreManagerScript.src = 'admin-store-manager.js?v=20260919-1';
+adminStoreManagerScript.src = 'admin-store-manager.js?v=20260919-2';
 adminStoreManagerScript.defer = true;
 document.head.appendChild(adminStoreManagerScript);
 const appIconSettingsScript = document.createElement('script');
@@ -59,7 +59,7 @@ customerPageLinkScript.src = 'admin-customer-page-link.js?v=20260913-1';
 customerPageLinkScript.defer = true;
 document.head.appendChild(customerPageLinkScript);
 const licenseManagerScript = document.createElement('script');
-licenseManagerScript.src = 'admin-license-manager.js?v=20260913-1';
+licenseManagerScript.src = 'admin-license-manager.js?v=20260919-1';
 licenseManagerScript.defer = true;
 document.head.appendChild(licenseManagerScript);
   const trialNoticeScript = document.createElement('script');
