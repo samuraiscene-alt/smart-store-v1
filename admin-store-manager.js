@@ -458,7 +458,7 @@
           ></div>
 <div
   class="warning"
-  id="createdTrialInfoV3"
+  id="createdLicenseInfoV3"
 ></div>
           <button
             class="openAdmin"
@@ -603,27 +603,20 @@
 
     return `등록코드는 1회용이며 ${formatted}까지 사용할 수 있습니다.`;
   }
-function formatTrialInfo(value) {
-  if (!value) {
-    return '무료 체험 종료일을 확인하지 못했습니다.';
-  }
+function formatLicenseInfo(status, kind) {
+  const kindText =
+    kind === 'additional'
+      ? '추가 매장 이용권'
+      : '첫 매장 이용권';
 
-  const date = new Date(value);
+  const statusText =
+    status === 'active'
+      ? '활성'
+      : status === 'trial'
+        ? '무료 체험'
+        : status || '확인 필요';
 
-  if (Number.isNaN(date.getTime())) {
-    return '무료 체험 종료일을 확인하지 못했습니다.';
-  }
-
-  const formatted = new Intl.DateTimeFormat(
-    'ko-KR',
-    {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }
-  ).format(date);
-
-  return `14일 무료 체험 · ${formatted}까지 사용 가능 · 체험 종료 후 라이선스 활성화가 필요합니다.`;
+  return `${kindText} · ${statusText}`;
 }
   async function loadStores() {
     const client = ensureClient();
@@ -707,7 +700,23 @@ function formatTrialInfo(value) {
       });
   }
 
-  async function checkOrganizationCreatePermission(button) {
+  function openLicenseOverview() {
+    const licenseButton =
+      document.getElementById(
+        'smartStoreLicenseManagerButton'
+      );
+
+    if (licenseButton) {
+      licenseButton.click();
+      return;
+    }
+
+    alert(
+      '추가 매장 이용권이 필요합니다.'
+    );
+  }
+
+  async function configureOrganizationCreateButton(button) {
     const client = ensureClient();
 
     if (!client || !button) return;
@@ -719,11 +728,24 @@ function formatTrialInfo(value) {
       );
 
     if (
-      !error &&
-      data?.can_create_store === true
+      error ||
+      data?.is_organization_owner !== true
     ) {
-      button.hidden = false;
+      return;
     }
+
+    button.hidden = false;
+
+    if (data?.can_create_store === true) {
+      button.textContent =
+        '+ 새 매장 만들기';
+      button.onclick = openModal;
+      return;
+    }
+
+    button.textContent =
+      '+ 추가 매장 이용권 필요';
+    button.onclick = openLicenseOverview;
   }
 
   function mountManager() {
@@ -760,10 +782,9 @@ function formatTrialInfo(value) {
     createButton.textContent =
       '+ 새 매장 만들기';
 
-    createButton.onclick = openModal;
     createButton.hidden = true;
 
-    checkOrganizationCreatePermission(
+    configureOrganizationCreateButton(
       createButton
     );
 
@@ -840,8 +861,10 @@ function formatTrialInfo(value) {
     const claimToken = data?.claim_token;
     const claimExpiresAt =
       data?.claim_expires_at;
-const trialEndsAt =
-  data?.trial_ends_at;
+    const licenseStatus =
+      data?.license_status;
+    const licenseKind =
+      data?.license_kind;
     if (!newSlug || !claimToken) {
       status.textContent =
         '매장은 생성됐지만 등록정보를 확인하지 못했습니다.';
@@ -865,8 +888,11 @@ const trialEndsAt =
 
     q('#createdClaimExpiryV3').textContent =
       formatExpiry(claimExpiresAt);
-q('#createdTrialInfoV3').textContent =
-  formatTrialInfo(trialEndsAt);
+    q('#createdLicenseInfoV3').textContent =
+      formatLicenseInfo(
+        licenseStatus,
+        licenseKind
+      );
     const openAdminButton =
       q(`#${MODAL_ID} .openAdmin`);
 
