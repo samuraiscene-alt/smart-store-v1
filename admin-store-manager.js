@@ -404,8 +404,9 @@
               매장 생성 완료 ✓
             </p>
             <p class="successText">
-              플랫폼 운영자 계정은 이 매장의 소유자로 등록되지 않습니다.
-              아래 등록코드를 실제 매장 사장님에게 전달해주세요.
+              이 매장은 현재 회사에 추가되었습니다.
+              아래 1회용 등록코드를 지점 관리자/점장에게 전달해주세요.
+              회사 최고관리자는 등록코드 없이 이 매장을 관리할 수 있습니다.
             </p>
           </div>
 
@@ -418,7 +419,7 @@
           ></div>
 
           <div class="resultLabel">
-            사장님 등록코드
+            지점 관리자 등록코드
           </div>
           <div class="copyRow">
             <div
@@ -706,14 +707,15 @@ function formatTrialInfo(value) {
       });
   }
 
-  async function checkPlatformCreatePermission(button) {
+  async function checkOrganizationCreatePermission(button) {
     const client = ensureClient();
 
     if (!client || !button) return;
 
     const { data, error } =
       await client.rpc(
-        'current_platform_capabilities'
+        'current_organization_capabilities',
+        { p_slug: CONFIG.storeSlug }
       );
 
     if (
@@ -761,7 +763,7 @@ function formatTrialInfo(value) {
     createButton.onclick = openModal;
     createButton.hidden = true;
 
-    checkPlatformCreatePermission(
+    checkOrganizationCreatePermission(
       createButton
     );
 
@@ -820,7 +822,8 @@ function formatTrialInfo(value) {
         'create_store_for_current_user',
         {
           p_name: name,
-          p_slug: slug || null
+          p_slug: slug || null,
+          p_parent_store_slug: CONFIG.storeSlug
         }
       );
 
