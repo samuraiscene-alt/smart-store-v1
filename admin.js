@@ -31,8 +31,10 @@ async function resolveStore(){
 }
 async function hasMembership(){
   if(!currentUser||!storeId)return false;
-  const {data:row,error}=await sb.from('store_members').select('role').eq('store_id',storeId).eq('user_id',currentUser.id).maybeSingle();
-  if(error)throw error;memberRole=row?.role||null;return !!row;
+  const {data:allowed,error}=await sb.rpc('is_store_member',{p_store_id:storeId});
+  if(error)throw error;
+  memberRole=allowed===true?'member':null;
+  return allowed===true;
 }
 async function handleSession(session){
   currentUser=session?.user||null;
