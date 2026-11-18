@@ -1,0 +1,151 @@
+name: Build Smart Store Reference ZIP
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/build-reference-export.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build sanitized reference package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf export
+          mkdir -p export/SMART_STORE_REFERENCE_FOR_GPT
+          rsync -a ./ export/SMART_STORE_REFERENCE_FOR_GPT/ \
+            --exclude '.git' \
+            --exclude 'export' \
+            --exclude '.github/workflows/build-reference-export.yml'
+
+          cd export/SMART_STORE_REFERENCE_FOR_GPT
+
+          find . -type f \( -name '*.js' -o -name '*.html' -o -name '*.json' -o -name '*.md' -o -name '*.txt' -o -name '*.css' \) -print0 \
+            | xargs -0 sed -i \
+              -e 's#https://jfjxgyclgzxvuwncjork\.supabase\.co#https://YOUR_PROJECT_REF.supabase.co#g' \
+              -e 's#sb_publishable_FYc-zUVTUjsWIIA1LO6gng_M0NpFqSt#YOUR_SUPABASE_PUBLISHABLE_KEY#g' \
+              -e 's#jfjxgyclgzxvuwncjork#YOUR_PROJECT_REF#g'
+
+          cat > README_FOR_GPT.md <<'EOF'
+          # Smart Store — GPT Reference Package
+
+          이 ZIP은 Smart Store의 구조와 구현 방식을 다른 GPT가 분석할 수 있도록 만든 참고용 소스 패키지입니다.
+
+          ## 목적
+          - 기존 서비스를 그대로 연결하는 용도가 아니라 구조/UX/권한/다중매장 설계를 참고하여 새 프로젝트를 만드는 샘플입니다.
+          - 고객용 PWA와 관리자용 PWA가 같은 Supabase 백엔드를 사용하는 다중매장형 구조입니다.
+          - 실제 Supabase URL/Publishable Key는 플레이스홀더로 교체했습니다.
+
+          ## 핵심 구조
+          - 고객용: index.html + app.js + customer-*.js
+          - 관리자용: admin.html + admin.js + admin-*.js
+          - PWA: manifest.json / admin-manifest.json / service-worker.js / pwa-head-bootstrap.js
+          - 공통 연결: cloud-config.js
+          - 다중매장: organization -> stores -> store_members
+          - 회사 최고관리자: organization_members owner/admin
+          - 지점 관리자/직원: store_members admin/staff
+          - 등록코드: 지점 관리자 최초 연결용 1회성 코드
+          - 라이선스: 첫 매장 + 추가 매장 이용권 구조
+
+          ## 다른 GPT에 권장하는 첫 요청
+          "이 ZIP 전체를 분석해. 기존 앱을 그대로 복제하지 말고, 기능 구조와 권한 구조를 참고해서 새 프로젝트 설계를 만들어줘. 먼저 파일별 역할, 데이터 흐름, 고객/관리자 화면 구조, Supabase 테이블/RLS/RPC 의존성을 정리한 뒤 구현 계획을 제시해."
+
+          ## 중요
+          이 패키지는 코드 참고용입니다. 실제 서비스에서는 새 Supabase 프로젝트를 만들고 RLS/RPC/Storage/Auth/Google Calendar/Push 설정을 별도로 구성해야 합니다.
+          EOF
+
+          cat > DATABASE_ARCHITECTURE_REFERENCE.md <<'EOF'
+          # Database Architecture Reference
+
+          ## Organization hierarchy
+          organizations
+            -> organization_members (owner/admin)
+            -> stores
+                -> store_members (admin/staff)
+
+          회사 최고관리자는 organization_members에서 관리하며, 매장마다 store_members owner를 만들지 않습니다.
+          지점 관리자와 직원만 store_members에 둡니다.
+
+          ## Access model
+          - Organization owner/admin: 자기 회사의 모든 store 접근 가능
+          - Store admin/staff: store_members로 연결된 store만 접근 가능
+          - 다른 organization 데이터는 RLS로 격리
+          - platform_admin은 고객회사 소유권 역할이 아니며 내부 지원/백오피스 용도로만 분리
+
+          ## Manager claim flow
+          1. Organization owner가 매장을 생성
+          2. 1회용 등록코드 발급
+          3. 지점 관리자가 이메일/비밀번호로 로그인
+          4. 등록코드 1회 입력
+          5. store_members.admin 연결
+          6. 이후 이메일/비밀번호만으로 로그인
+          7. 관리자 교체 시 기존 admin 권한을 해제하고 새 코드 발급
+
+          ## License model
+          - 첫 매장: base
+          - 추가 매장: additional
+          - organization별 base_store_slots / additional_store_slots
+          - 새 매장 생성은 허용 수량을 서버 RPC에서 검사
+          - 실제 가격/PG 결제는 이 참고 패키지에 포함하지 않음
+
+          ## Important backend objects used by current frontend
+          - organizations
+          - organization_members
+          - stores
+          - store_members
+          - store_claims
+          - private.store_licenses
+          - private.organization_store_entitlements
+          - services
+          - staff
+          - staff_services
+          - customers
+          - reservations
+          - store_closed_days / special_closures
+          - Google Calendar / Push 관련 테이블
+
+          주요 RPC 예시:
+          - is_store_member
+          - current_organization_capabilities
+          - current_organization_license_overview
+          - create_store_for_current_user
+          - claim_store
+          - organization_store_claim_statuses
+          - reissue_store_claim
+          - public_store_payload
+          - public_store_license_state
+          EOF
+
+          printf '%s\n' "${GITHUB_SHA}" > SOURCE_COMMIT.txt
+
+          cd ..
+          zip -qr SMART_STORE_REFERENCE_FOR_GPT.zip SMART_STORE_REFERENCE_FOR_GPT
+
+      - name: Upload reference ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMART_STORE_REFERENCE_FOR_GPT
+          path: export/SMART_STORE_REFERENCE_FOR_GPT.zip
+          retention-days: 1
+
+      - name: Remove temporary export workflow
+        if: always()
+        shell: bash
+        run: |
+          set -e
+          git config user.name "smart-store-export-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/build-reference-export.yml
+          git commit -m "Remove temporary Smart Store export workflow [skip ci]"
+          git push origin HEAD:main
